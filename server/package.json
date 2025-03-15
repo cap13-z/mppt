@@ -1,0 +1,22 @@
+{
+  "name": "energy-system-server",
+  "version": "1.0.0",
+  "description": "综合能源系统监控平台后端服务器",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "ws": "^8.16.0",
+    "mysql2": "^3.9.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+} 
