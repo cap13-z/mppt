@@ -161,12 +161,12 @@ app.get('/api/all-latest-data', (req, res) => {
     });
 });
 
-// 保留原有的能源数据API路由用于兼容性
+// API 路由 - 获取能源数据
 app.get('/api/energy-data', (req, res) => {
     const query = 'SELECT * FROM energy_data ORDER BY timestamp DESC LIMIT 100';
     db.query(query, (err, results) => {
         if (err) {
-            console.error('查询数据库时出错:', err);
+            console.error('查询能源数据时出错:', err);
             return res.status(500).json({ error: '服务器错误' });
         }
         res.json(results);
@@ -240,7 +240,7 @@ io.on('connection', (socket) => {
 });
 
 // 启动服务器
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-    console.log(`服务器运行在端口 ${PORT}`);
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`服务器运行在端口 ${PORT}，可通过 http://localhost:${PORT} 访问`);
 }); 

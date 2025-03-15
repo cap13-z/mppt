@@ -16,6 +16,16 @@ const connection = mysql.createConnection({
 
 console.log('尝试连接到MySQL...');
 
+// 删除现有表（如果存在）
+const dropTables = `
+DROP TABLE IF EXISTS battery_data;
+DROP TABLE IF EXISTS solar_data;
+DROP TABLE IF EXISTS power_status;
+DROP TABLE IF EXISTS weather_data;
+DROP TABLE IF EXISTS electricity_price;
+DROP TABLE IF EXISTS energy_data;
+`;
+
 // 创建电池数据表
 const createBatteryTable = `
 CREATE TABLE IF NOT EXISTS battery_data (
@@ -72,6 +82,18 @@ CREATE TABLE IF NOT EXISTS electricity_price (
   price FLOAT NOT NULL,
   price_level VARCHAR(20),
   next_change_time DATETIME,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+// 创建能源数据表
+const createEnergyTable = `
+CREATE TABLE IF NOT EXISTS energy_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  voltage FLOAT NOT NULL,
+  current FLOAT NOT NULL,
+  power FLOAT NOT NULL,
+  energy FLOAT NOT NULL,
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 `;
@@ -147,87 +169,128 @@ INSERT INTO electricity_price (price, price_level, next_change_time, timestamp) 
 (0.82, '峰值', NOW() + INTERVAL 3 HOUR, NOW() - INTERVAL 1 MINUTE);
 `;
 
-// 执行创建表和插入数据的操作
-connection.query(createBatteryTable, (err) => {
-  if (err) {
-    console.error('创建电池数据表时出错:', err);
-    return;
-  }
-  console.log('电池数据表创建成功');
-  
-  connection.query(insertBatteryData, (err) => {
-    if (err) {
-      console.error('插入电池数据时出错:', err);
-    } else {
-      console.log('电池数据插入成功');
-    }
-  });
-});
+const insertEnergyData = `
+INSERT INTO energy_data (voltage, current, power, energy, timestamp) VALUES
+(12.5, 1.2, 15.0, 150.0, NOW() - INTERVAL 10 MINUTE),
+(12.6, 1.3, 16.5, 165.0, NOW() - INTERVAL 9 MINUTE),
+(12.4, 1.1, 14.0, 140.0, NOW() - INTERVAL 8 MINUTE),
+(12.7, 1.4, 18.0, 180.0, NOW() - INTERVAL 7 MINUTE),
+(12.8, 1.5, 19.5, 195.0, NOW() - INTERVAL 6 MINUTE),
+(12.9, 1.6, 21.0, 210.0, NOW() - INTERVAL 5 MINUTE),
+(13.0, 1.7, 22.5, 225.0, NOW() - INTERVAL 4 MINUTE),
+(13.1, 1.8, 24.0, 240.0, NOW() - INTERVAL 3 MINUTE),
+(13.2, 1.9, 25.5, 255.0, NOW() - INTERVAL 2 MINUTE),
+(13.3, 2.0, 27.0, 270.0, NOW() - INTERVAL 1 MINUTE);
+`;
 
-connection.query(createSolarTable, (err) => {
+// 执行删除表操作
+connection.query(dropTables, (err) => {
   if (err) {
-    console.error('创建太阳能板数据表时出错:', err);
-    return;
-  }
-  console.log('太阳能板数据表创建成功');
-  
-  connection.query(insertSolarData, (err) => {
-    if (err) {
-      console.error('插入太阳能板数据时出错:', err);
-    } else {
-      console.log('太阳能板数据插入成功');
-    }
-  });
-});
-
-connection.query(createPowerStatusTable, (err) => {
-  if (err) {
-    console.error('创建系统供电状态表时出错:', err);
-    return;
-  }
-  console.log('系统供电状态表创建成功');
-  
-  connection.query(insertPowerStatusData, (err) => {
-    if (err) {
-      console.error('插入系统供电状态数据时出错:', err);
-    } else {
-      console.log('系统供电状态数据插入成功');
-    }
-  });
-});
-
-connection.query(createWeatherTable, (err) => {
-  if (err) {
-    console.error('创建天气数据表时出错:', err);
-    return;
-  }
-  console.log('天气数据表创建成功');
-  
-  connection.query(insertWeatherData, (err) => {
-    if (err) {
-      console.error('插入天气数据时出错:', err);
-    } else {
-      console.log('天气数据插入成功');
-    }
-  });
-});
-
-connection.query(createPriceTable, (err) => {
-  if (err) {
-    console.error('创建电价数据表时出错:', err);
-    return;
-  }
-  console.log('电价数据表创建成功');
-  
-  connection.query(insertPriceData, (err) => {
-    if (err) {
-      console.error('插入电价数据时出错:', err);
-    } else {
-      console.log('电价数据插入成功');
-    }
+    console.error('删除表时出错:', err);
+  } else {
+    console.log('成功删除现有表（如果存在）');
     
-    // 完成所有操作后关闭连接
-    connection.end();
-    console.log('数据库初始化完成');
-  });
+    // 执行创建表和插入数据的操作
+    connection.query(createBatteryTable, (err) => {
+      if (err) {
+        console.error('创建电池数据表时出错:', err);
+        return;
+      }
+      console.log('电池数据表创建成功');
+      
+      connection.query(insertBatteryData, (err) => {
+        if (err) {
+          console.error('插入电池数据时出错:', err);
+        } else {
+          console.log('电池数据插入成功');
+        }
+      });
+    });
+
+    connection.query(createSolarTable, (err) => {
+      if (err) {
+        console.error('创建太阳能板数据表时出错:', err);
+        return;
+      }
+      console.log('太阳能板数据表创建成功');
+      
+      connection.query(insertSolarData, (err) => {
+        if (err) {
+          console.error('插入太阳能板数据时出错:', err);
+        } else {
+          console.log('太阳能板数据插入成功');
+        }
+      });
+    });
+
+    connection.query(createPowerStatusTable, (err) => {
+      if (err) {
+        console.error('创建系统供电状态表时出错:', err);
+        return;
+      }
+      console.log('系统供电状态表创建成功');
+      
+      connection.query(insertPowerStatusData, (err) => {
+        if (err) {
+          console.error('插入系统供电状态数据时出错:', err);
+        } else {
+          console.log('系统供电状态数据插入成功');
+        }
+      });
+    });
+
+    connection.query(createWeatherTable, (err) => {
+      if (err) {
+        console.error('创建天气数据表时出错:', err);
+        return;
+      }
+      console.log('天气数据表创建成功');
+      
+      connection.query(insertWeatherData, (err) => {
+        if (err) {
+          console.error('插入天气数据时出错:', err);
+        } else {
+          console.log('天气数据插入成功');
+        }
+      });
+    });
+
+    connection.query(createPriceTable, (err) => {
+      if (err) {
+        console.error('创建电价数据表时出错:', err);
+        return;
+      }
+      console.log('电价数据表创建成功');
+      
+      connection.query(insertPriceData, (err) => {
+        if (err) {
+          console.error('插入电价数据时出错:', err);
+        } else {
+          console.log('电价数据插入成功');
+        }
+      });
+    });
+
+    connection.query(createEnergyTable, (err) => {
+      if (err) {
+        console.error('创建能源数据表时出错:', err);
+        return;
+      }
+      console.log('能源数据表创建成功');
+      
+      connection.query(insertEnergyData, (err) => {
+        if (err) {
+          console.error('插入能源数据时出错:', err);
+        } else {
+          console.log('能源数据插入成功');
+          
+          // 完成所有操作后关闭连接
+          setTimeout(() => {
+            connection.end();
+            console.log('数据库初始化完成');
+          }, 1000);
+        }
+      });
+    });
+  }
 }); 

@@ -863,860 +863,898 @@
             </div>
         </div>
     </div>
-</body>
-</html><script>
-    // 连接到 Socket.IO 服务器
-    const socket = io();
     
-    // 获取 DOM 元素 - 电池状态
-    const batteryVoltageElement = document.getElementById('battery-voltage');
-    const batteryPercentageElement = document.getElementById('battery-percentage');
-    const batteryLevelElement = document.getElementById('battery-level');
-    const batteryStatusElement = document.getElementById('battery-status');
-    const batteryTemperatureElement = document.getElementById('battery-temperature');
-    
-    // 获取 DOM 元素 - 太阳能板
-    const solarPowerElement = document.getElementById('solar-power');
-    const solarVoltageElement = document.getElementById('solar-voltage');
-    const solarCurrentElement = document.getElementById('solar-current');
-    const solarEfficiencyElement = document.getElementById('solar-efficiency');
-    const solarTemperatureElement = document.getElementById('solar-temperature');
-    
-    // 获取 DOM 元素 - 系统供电状态
-    const loadPowerElement = document.getElementById('load-power');
-    const solarPowerStatusElement = document.getElementById('solar-power-status');
-    const gridPowerStatusElement = document.getElementById('grid-power-status');
-    const solarStatusTextElement = document.getElementById('solar-status-text');
-    const gridStatusTextElement = document.getElementById('grid-status-text');
-    
-    // 获取 DOM 元素 - 天气
-    const weatherIconElement = document.getElementById('weather-icon');
-    const weatherConditionElement = document.getElementById('weather-condition');
-    const weatherTemperatureElement = document.getElementById('weather-temperature');
-    const weatherHumidityElement = document.getElementById('weather-humidity');
-    const solarRadiationElement = document.getElementById('solar-radiation');
-    
-    // 获取 DOM 元素 - 电价
-    const electricityPriceElement = document.getElementById('electricity-price');
-    const priceLevelElement = document.getElementById('price-level');
-    const nextPriceChangeElement = document.getElementById('next-price-change');
-    
-    // 获取 DOM 元素 - 连接状态
-    const connectionStatus = document.getElementById('connectionStatus');
-    
-    // 获取表格元素
-    const batteryTableBody = document.querySelector('#batteryTable tbody');
-    const solarTableBody = document.querySelector('#solarTable tbody');
-    const powerTableBody = document.querySelector('#powerTable tbody');
-    const weatherTableBody = document.querySelector('#weatherTable tbody');
-    const priceTableBody = document.querySelector('#priceTable tbody');
-    
-    // 初始化图表
-    Chart.defaults.color = 'rgba(228, 241, 254, 0.7)';
-    Chart.defaults.font.family = "'Roboto', 'Microsoft YaHei', Arial, sans-serif";
-    
-    // 能源数据图表
-    const energyChartCtx = document.getElementById('energyChart').getContext('2d');
-    const energyChart = new Chart(energyChartCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: '电池电压 (V)',
-                    data: [],
-                    borderColor: '#00a8ff',
-                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y'
-                },
-                {
-                    label: '太阳能功率 (W)',
-                    data: [],
-                    borderColor: '#ffa502',
-                    backgroundColor: 'rgba(255, 165, 2, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y1'
-                },
-                {
-                    label: '系统负载 (W)',
-                    data: [],
-                    borderColor: '#00e676',
-                    backgroundColor: 'rgba(0, 230, 118, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y1'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        boxWidth: 15,
-                        usePointStyle: true,
-                        pointStyle: 'circle'
-                    }
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(13, 28, 75, 0.9)',
-                    borderColor: 'rgba(0, 168, 255, 0.3)',
-                    borderWidth: 1,
-                    padding: 10,
-                    cornerRadius: 5
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    ticks: {
-                        maxRotation: 45,
-                        minRotation: 45
-                    }
-                },
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '电压 (V)',
-                        color: '#00a8ff'
-                    }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    grid: {
-                        drawOnChartArea: false,
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '功率 (W)',
-                        color: '#ffa502'
-                    }
-                }
-            }
-        }
-    });
-    
-    // 电池数据图表
-    const batteryChartCtx = document.getElementById('batteryChart').getContext('2d');
-    const batteryChart = new Chart(batteryChartCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: '电压 (V)',
-                    data: [],
-                    borderColor: '#00a8ff',
-                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y'
-                },
-                {
-                    label: '容量 (%)',
-                    data: [],
-                    borderColor: '#4cd137',
-                    backgroundColor: 'rgba(76, 209, 55, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y1'
-                },
-                {
-                    label: '温度 (°C)',
-                    data: [],
-                    borderColor: '#ff6b81',
-                    backgroundColor: 'rgba(255, 107, 129, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y2'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        boxWidth: 15,
-                        usePointStyle: true,
-                        pointStyle: 'circle'
-                    }
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(13, 28, 75, 0.9)',
-                    borderColor: 'rgba(0, 168, 255, 0.3)',
-                    borderWidth: 1,
-                    padding: 10,
-                    cornerRadius: 5
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    }
-                },
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '电压 (V)',
-                        color: '#00a8ff'
-                    }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    grid: {
-                        drawOnChartArea: false,
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '容量 (%)',
-                        color: '#4cd137'
-                    },
-                    min: 0,
-                    max: 100
-                },
-                y2: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    grid: {
-                        drawOnChartArea: false,
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '温度 (°C)',
-                        color: '#ff6b81'
-                    }
-                }
-            }
-        }
-    });
-    
-    // 太阳能数据图表
-    const solarChartCtx = document.getElementById('solarChart').getContext('2d');
-    const solarChart = new Chart(solarChartCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: '电压 (V)',
-                    data: [],
-                    borderColor: '#00a8ff',
-                    backgroundColor: 'rgba(0, 168, 255, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y'
-                },
-                {
-                    label: '电流 (A)',
-                    data: [],
-                    borderColor: '#ff9f43',
-                    backgroundColor: 'rgba(255, 159, 67, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y1'
-                },
-                {
-                    label: '功率 (W)',
-                    data: [],
-                    borderColor: '#ffa502',
-                    backgroundColor: 'rgba(255, 165, 2, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y2'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        boxWidth: 15,
-                        usePointStyle: true,
-                        pointStyle: 'circle'
-                    }
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(13, 28, 75, 0.9)',
-                    borderColor: 'rgba(0, 168, 255, 0.3)',
-                    borderWidth: 1,
-                    padding: 10,
-                    cornerRadius: 5
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    }
-                },
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '电压 (V)',
-                        color: '#00a8ff'
-                    }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    grid: {
-                        drawOnChartArea: false,
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '电流 (A)',
-                        color: '#ff9f43'
-                    }
-                },
-                y2: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    grid: {
-                        drawOnChartArea: false,
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    title: {
-                        display: true,
-                        text: '功率 (W)',
-                        color: '#ffa502'
-                    }
-                }
-            }
-        }
-    });
-    
-    // 初始化其他图表 (powerChart, weatherChart, priceChart)
-    // 这里省略了其他图表的初始化代码，实际使用时需要添加
-    
-    // 格式化时间
-    function formatTime(timestamp) {
-        const date = new Date(timestamp);
-        return date.toLocaleString('zh-CN');
-    }
-    
-    // 格式化日期时间
-    function formatDateTime(dateTimeStr) {
-        const date = new Date(dateTimeStr);
-        return date.toLocaleString('zh-CN');
-    }
-    
-    // 更新电池状态
-    function updateBatteryStatus(data) {
-        if (!data) return;
+    <script>
+        // 连接到 Socket.IO 服务器
+        const socket = io();
         
-        // 添加动画效果
-        batteryVoltageElement.classList.add('pulse');
+        // 获取 DOM 元素 - 电池状态
+        const batteryVoltageElement = document.getElementById('battery-voltage');
+        const batteryPercentageElement = document.getElementById('battery-percentage');
+        const batteryLevelElement = document.getElementById('battery-level');
+        const batteryStatusElement = document.getElementById('battery-status');
+        const batteryTemperatureElement = document.getElementById('battery-temperature');
         
-        // 更新数值
-        batteryVoltageElement.textContent = data.voltage.toFixed(2);
-        batteryPercentageElement.textContent = `${data.capacity.toFixed(0)}%`;
-        batteryLevelElement.style.width = `${data.capacity}%`;
-        batteryTemperatureElement.textContent = `温度: ${data.temperature.toFixed(1)}°C`;
+        // 获取 DOM 元素 - 太阳能板
+        const solarPowerElement = document.getElementById('solar-power');
+        const solarVoltageElement = document.getElementById('solar-voltage');
+        const solarCurrentElement = document.getElementById('solar-current');
+        const solarEfficiencyElement = document.getElementById('solar-efficiency');
+        const solarTemperatureElement = document.getElementById('solar-temperature');
+        
+        // 获取 DOM 元素 - 系统供电状态
+        const loadPowerElement = document.getElementById('load-power');
+        const solarPowerStatusElement = document.getElementById('solar-power-status');
+        const gridPowerStatusElement = document.getElementById('grid-power-status');
+        const solarStatusTextElement = document.getElementById('solar-status-text');
+        const gridStatusTextElement = document.getElementById('grid-status-text');
+        
+        // 获取 DOM 元素 - 天气
+        const weatherIconElement = document.getElementById('weather-icon');
+        const weatherConditionElement = document.getElementById('weather-condition');
+        const weatherTemperatureElement = document.getElementById('weather-temperature');
+        const weatherHumidityElement = document.getElementById('weather-humidity');
+        const solarRadiationElement = document.getElementById('solar-radiation');
+        
+        // 获取 DOM 元素 - 电价
+        const electricityPriceElement = document.getElementById('electricity-price');
+        const priceLevelElement = document.getElementById('price-level');
+        const nextPriceChangeElement = document.getElementById('next-price-change');
+        
+        // 获取 DOM 元素 - 连接状态（检查是否存在）
+        const connectionStatus = document.getElementById('connectionStatus');
+        
+        // 获取表格元素
+        const batteryTableBody = document.querySelector('#batteryTable tbody');
+        const solarTableBody = document.querySelector('#solarTable tbody');
+        const powerTableBody = document.querySelector('#powerTable tbody');
+        const weatherTableBody = document.querySelector('#weatherTable tbody');
+        const priceTableBody = document.querySelector('#priceTable tbody');
+        
+        // 初始化图表
+        Chart.defaults.color = 'rgba(228, 241, 254, 0.7)';
+        Chart.defaults.font.family = "'Roboto', 'Microsoft YaHei', Arial, sans-serif";
+        
+        // 能源数据图表
+        const energyChartCtx = document.getElementById('energyChart').getContext('2d');
+        const energyChart = new Chart(energyChartCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '电池电压 (V)',
+                        data: [],
+                        borderColor: '#00a8ff',
+                        backgroundColor: 'rgba(0, 168, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '太阳能功率 (W)',
+                        data: [],
+                        borderColor: '#ffa502',
+                        backgroundColor: 'rgba(255, 165, 2, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: '系统负载 (W)',
+                        data: [],
+                        borderColor: '#00e676',
+                        backgroundColor: 'rgba(0, 230, 118, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            boxWidth: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(13, 28, 75, 0.9)',
+                        borderColor: 'rgba(0, 168, 255, 0.3)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 5
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '电压 (V)',
+                            color: '#00a8ff'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '功率 (W)',
+                            color: '#ffa502'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 电池数据图表
+        const batteryChartCtx = document.getElementById('batteryChart').getContext('2d');
+        const batteryChart = new Chart(batteryChartCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '电压 (V)',
+                        data: [],
+                        borderColor: '#00a8ff',
+                        backgroundColor: 'rgba(0, 168, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '容量 (%)',
+                        data: [],
+                        borderColor: '#4cd137',
+                        backgroundColor: 'rgba(76, 209, 55, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: '温度 (°C)',
+                        data: [],
+                        borderColor: '#ff6b81',
+                        backgroundColor: 'rgba(255, 107, 129, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y2'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            boxWidth: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(13, 28, 75, 0.9)',
+                        borderColor: 'rgba(0, 168, 255, 0.3)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 5
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '电压 (V)',
+                            color: '#00a8ff'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '容量 (%)',
+                            color: '#4cd137'
+                        },
+                        min: 0,
+                        max: 100
+                    },
+                    y2: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '温度 (°C)',
+                            color: '#ff6b81'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 太阳能数据图表
+        const solarChartCtx = document.getElementById('solarChart').getContext('2d');
+        const solarChart = new Chart(solarChartCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '电压 (V)',
+                        data: [],
+                        borderColor: '#00a8ff',
+                        backgroundColor: 'rgba(0, 168, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '电流 (A)',
+                        data: [],
+                        borderColor: '#ff9f43',
+                        backgroundColor: 'rgba(255, 159, 67, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: '功率 (W)',
+                        data: [],
+                        borderColor: '#ffa502',
+                        backgroundColor: 'rgba(255, 165, 2, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y2'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            boxWidth: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(13, 28, 75, 0.9)',
+                        borderColor: 'rgba(0, 168, 255, 0.3)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 5
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '电压 (V)',
+                            color: '#00a8ff'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '电流 (A)',
+                            color: '#ff9f43'
+                        }
+                    },
+                    y2: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        title: {
+                            display: true,
+                            text: '功率 (W)',
+                            color: '#ffa502'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 初始化其他图表 (powerChart, weatherChart, priceChart)
+        // 这里省略了其他图表的初始化代码，实际使用时需要添加
+        
+        // 格式化时间
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('zh-CN');
+        }
+        
+        // 格式化日期时间
+        function formatDateTime(dateTimeStr) {
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('zh-CN');
+        }
         
         // 更新电池状态
-        batteryStatusElement.textContent = data.status;
-        batteryStatusElement.className = 'status-indicator';
-        
-        if (data.status.includes('充电')) {
-            batteryStatusElement.classList.add('charging');
-        } else if (data.status.includes('放电')) {
-            batteryStatusElement.classList.add('discharging');
-        } else if (data.status.includes('满电')) {
-            batteryStatusElement.classList.add('full');
-        }
-        
-        // 移除动画效果
-        setTimeout(() => {
-            batteryVoltageElement.classList.remove('pulse');
-        }, 2000);
-        
-        // 更新图表数据
-        const time = formatTime(data.timestamp);
-        
-        // 限制图表数据点数量
-        if (batteryChart.data.labels.length > 20) {
-            batteryChart.data.labels.shift();
-            batteryChart.data.datasets.forEach(dataset => {
-                dataset.data.shift();
-            });
-        }
-        
-        // 添加新数据点
-        if (!batteryChart.data.labels.includes(time)) {
-            batteryChart.data.labels.push(time);
-            batteryChart.data.datasets[0].data.push(data.voltage);
-            batteryChart.data.datasets[1].data.push(data.capacity);
-            batteryChart.data.datasets[2].data.push(data.temperature);
-            batteryChart.update();
-        }
-        
-        // 更新能源图表
-        if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
-            energyChart.data.labels.push(time);
-            energyChart.data.datasets[0].data.push(data.voltage);
-            energyChart.update();
-        }
-    }
-    
-    // 更新太阳能板状态
-    function updateSolarStatus(data) {
-        if (!data) return;
-        
-        // 添加动画效果
-        solarPowerElement.classList.add('pulse');
-        
-        // 更新数值
-        solarPowerElement.textContent = data.power.toFixed(1);
-        solarVoltageElement.textContent = `电压: ${data.voltage.toFixed(1)}V`;
-        solarCurrentElement.textContent = `电流: ${data.current.toFixed(2)}A`;
-        solarEfficiencyElement.textContent = `效率: ${data.efficiency.toFixed(1)}%`;
-        solarTemperatureElement.textContent = `温度: ${data.temperature.toFixed(1)}°C`;
-        
-        // 移除动画效果
-        setTimeout(() => {
-            solarPowerElement.classList.remove('pulse');
-        }, 2000);
-        
-        // 更新图表数据
-        const time = formatTime(data.timestamp);
-        
-        // 限制图表数据点数量
-        if (solarChart.data.labels.length > 20) {
-            solarChart.data.labels.shift();
-            solarChart.data.datasets.forEach(dataset => {
-                dataset.data.shift();
-            });
-        }
-        
-        // 添加新数据点
-        if (!solarChart.data.labels.includes(time)) {
-            solarChart.data.labels.push(time);
-            solarChart.data.datasets[0].data.push(data.voltage);
-            solarChart.data.datasets[1].data.push(data.current);
-            solarChart.data.datasets[2].data.push(data.power);
-            solarChart.update();
-        }
-        
-        // 更新能源图表
-        if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
-            energyChart.data.datasets[1].data.push(data.power);
-            energyChart.update();
-        }
-    }
-    
-    // 更新系统供电状态
-    function updatePowerStatus(data) {
-        if (!data) return;
-        
-        // 添加动画效果
-        loadPowerElement.classList.add('pulse');
-        
-        // 更新数值
-        loadPowerElement.textContent = data.load_power.toFixed(1);
-        
-        // 更新供电来源状态
-        if (data.source === '太阳能') {
-            solarPowerStatusElement.classList.add('active');
-            solarPowerStatusElement.classList.remove('inactive');
-            gridPowerStatusElement.classList.add('inactive');
-            gridPowerStatusElement.classList.remove('active');
-        } else {
-            gridPowerStatusElement.classList.add('active');
-            gridPowerStatusElement.classList.remove('inactive');
-            solarPowerStatusElement.classList.add('inactive');
-            solarPowerStatusElement.classList.remove('active');
-        }
-        
-        // 更新状态文本
-        solarStatusTextElement.textContent = data.solar_status;
-        gridStatusTextElement.textContent = data.grid_status;
-        
-        // 移除动画效果
-        setTimeout(() => {
-            loadPowerElement.classList.remove('pulse');
-        }, 2000);
-        
-        // 更新能源图表
-        const time = formatTime(data.timestamp);
-        if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
-            energyChart.data.datasets[2].data.push(data.load_power);
-            energyChart.update();
-        }
-    }
-    
-    // 更新天气状态
-    function updateWeatherStatus(data) {
-        if (!data) return;
-        
-        // 更新天气图标
-        let weatherIconClass = 'fa-sun';
-        if (data.weather_condition.includes('多云')) {
-            weatherIconClass = 'fa-cloud-sun';
-        } else if (data.weather_condition.includes('阴')) {
-            weatherIconClass = 'fa-cloud';
-        } else if (data.weather_condition.includes('雨')) {
-            weatherIconClass = 'fa-cloud-rain';
-        } else if (data.weather_condition.includes('雪')) {
-            weatherIconClass = 'fa-snowflake';
-        }
-        
-        weatherIconElement.innerHTML = `<i class="fas ${weatherIconClass}"></i>`;
-        
-        // 更新数值
-        weatherConditionElement.textContent = data.weather_condition;
-        weatherTemperatureElement.textContent = `${data.temperature.toFixed(1)}°C`;
-        weatherHumidityElement.textContent = `${data.humidity.toFixed(0)}%`;
-        solarRadiationElement.textContent = `${data.solar_radiation.toFixed(0)} W/m²`;
-    }
-    
-    // 更新电价信息
-    function updatePriceStatus(data) {
-        if (!data) return;
-        
-        // 添加动画效果
-        electricityPriceElement.classList.add('pulse');
-        
-        // 更新数值
-        electricityPriceElement.textContent = data.price.toFixed(2);
-        
-        // 更新电价等级
-        priceLevelElement.textContent = data.price_level;
-        priceLevelElement.className = 'price-level';
-        
-        if (data.price_level === '峰值') {
-            priceLevelElement.classList.add('peak');
-        } else if (data.price_level === '平值') {
-            priceLevelElement.classList.add('normal');
-        } else if (data.price_level === '谷值') {
-            priceLevelElement.classList.add('valley');
-        }
-        
-        // 更新下次变动时间
-        const nextChangeTime = new Date(data.next_change_time);
-        nextPriceChangeElement.textContent = `下次变动: ${formatDateTime(nextChangeTime)}`;
-        
-        // 移除动画效果
-        setTimeout(() => {
-            electricityPriceElement.classList.remove('pulse');
-        }, 2000);
-    }
-    
-    // 更新所有数据
-    function updateAllData(data) {
-        updateBatteryStatus(data.battery);
-        updateSolarStatus(data.solar);
-        updatePowerStatus(data.powerStatus);
-        updateWeatherStatus(data.weather);
-        updatePriceStatus(data.price);
-    }
-    
-    // 添加数据到表格
-    function addDataToTable(data, tableBody, type) {
-        if (!data) return;
-        
-        const row = document.createElement('tr');
-        
-        switch (type) {
-            case 'battery':
-                row.innerHTML = `
-                    <td>${formatTime(data.timestamp)}</td>
-                    <td>${data.voltage.toFixed(2)}</td>
-                    <td>${data.capacity.toFixed(1)}</td>
-                    <td>${data.status}</td>
-                    <td>${data.temperature ? data.temperature.toFixed(1) : 'N/A'}</td>
-                `;
-                break;
-            case 'solar':
-                row.innerHTML = `
-                    <td>${formatTime(data.timestamp)}</td>
-                    <td>${data.voltage.toFixed(2)}</td>
-                    <td>${data.current.toFixed(2)}</td>
-                    <td>${data.power.toFixed(1)}</td>
-                    <td>${data.temperature ? data.temperature.toFixed(1) : 'N/A'}</td>
-                    <td>${data.efficiency ? data.efficiency.toFixed(1) : 'N/A'}</td>
-                `;
-                break;
-            case 'power':
-                row.innerHTML = `
-                    <td>${formatTime(data.timestamp)}</td>
-                    <td>${data.source}</td>
-                    <td>${data.grid_status}</td>
-                    <td>${data.solar_status}</td>
-                    <td>${data.load_power.toFixed(1)}</td>
-                `;
-                break;
-            case 'weather':
-                row.innerHTML = `
-                    <td>${formatTime(data.timestamp)}</td>
-                    <td>${data.temperature.toFixed(1)}</td>
-                    <td>${data.humidity.toFixed(0)}</td>
-                    <td>${data.weather_condition}</td>
-                    <td>${data.solar_radiation.toFixed(0)}</td>
-                `;
-                break;
-            case 'price':
-                row.innerHTML = `
-                    <td>${formatTime(data.timestamp)}</td>
-                    <td>${data.price.toFixed(2)}</td>
-                    <td>${data.price_level}</td>
-                    <td>${formatDateTime(data.next_change_time)}</td>
-                `;
-                break;
-        }
-        
-        // 添加行动画
-        row.style.opacity = '0';
-        row.style.transform = 'translateY(-10px)';
-        row.style.transition = 'all 0.3s ease';
-        
-        // 限制表格行数
-        if (tableBody.children.length >= 10) {
-            tableBody.removeChild(tableBody.lastChild);
-        }
-        
-        tableBody.insertBefore(row, tableBody.firstChild);
-        
-        // 触发动画
-        setTimeout(() => {
-            row.style.opacity = '1';
-            row.style.transform = 'translateY(0)';
-        }, 10);
-    }
-    
-    // 监听 Socket.IO 事件
-    socket.on('connect', () => {
-        connectionStatus.textContent = '已连接';
-        connectionStatus.className = 'status online';
-        console.log('已连接到服务器');
-    });
-    
-    socket.on('disconnect', () => {
-        connectionStatus.textContent = '已断开';
-        connectionStatus.className = 'status offline';
-        console.log('与服务器断开连接');
-    });
-    
-    socket.on('data-update', (data) => {
-        console.log('收到数据更新:', data);
-        updateAllData(data);
-        
-        // 添加数据到表格
-        addDataToTable(data.battery, batteryTableBody, 'battery');
-        addDataToTable(data.solar, solarTableBody, 'solar');
-        addDataToTable(data.powerStatus, powerTableBody, 'power');
-        addDataToTable(data.weather, weatherTableBody, 'weather');
-        addDataToTable(data.price, priceTableBody, 'price');
-    });
-    
-    // 页面加载时获取历史数据
-    window.addEventListener('load', () => {
-        // 添加加载动画
-        const loadingElement = document.createElement('div');
-        loadingElement.style.position = 'fixed';
-        loadingElement.style.top = '0';
-        loadingElement.style.left = '0';
-        loadingElement.style.width = '100%';
-        loadingElement.style.height = '100%';
-        loadingElement.style.backgroundColor = 'rgba(6, 13, 44, 0.9)';
-        loadingElement.style.display = 'flex';
-        loadingElement.style.justifyContent = 'center';
-        loadingElement.style.alignItems = 'center';
-        loadingElement.style.zIndex = '9999';
-        loadingElement.style.transition = 'opacity 0.5s ease';
-        loadingElement.innerHTML = '<div style="color: #00a8ff; font-size: 1.5rem;">加载数据中...</div>';
-        document.body.appendChild(loadingElement);
-        
-        // 获取所有最新数据
-        fetch('/api/all-latest-data')
-            .then(response => response.json())
-            .then(data => {
-                console.log('获取最新数据:', data);
-                updateAllData(data);
-                
-                // 移除加载动画
-                loadingElement.style.opacity = '0';
-                setTimeout(() => {
-                    document.body.removeChild(loadingElement);
-                }, 500);
-            })
-            .catch(error => {
-                console.error('获取最新数据时出错:', error);
-                connectionStatus.textContent = '数据加载失败';
-                connectionStatus.className = 'status offline';
-                
-                // 移除加载动画
-                loadingElement.style.opacity = '0';
-                setTimeout(() => {
-                    document.body.removeChild(loadingElement);
-                }, 500);
-            });
-        
-        // 获取历史数据
-        Promise.all([
-            fetch('/api/battery-data').then(res => res.json()),
-            fetch('/api/solar-data').then(res => res.json()),
-            fetch('/api/power-status').then(res => res.json()),
-            fetch('/api/weather-data').then(res => res.json()),
-            fetch('/api/electricity-price').then(res => res.json())
-        ])
-        .then(([batteryData, solarData, powerData, weatherData, priceData]) => {
-            console.log('获取历史数据成功');
+        function updateBatteryStatus(data) {
+            if (!data) return;
             
-            // 填充表格数据
-            batteryTableBody.innerHTML = '';
-            solarTableBody.innerHTML = '';
-            powerTableBody.innerHTML = '';
-            weatherTableBody.innerHTML = '';
-            priceTableBody.innerHTML = '';
+            // 添加动画效果
+            batteryVoltageElement.classList.add('pulse');
             
-            batteryData.slice(0, 10).forEach(item => {
-                addDataToTable(item, batteryTableBody, 'battery');
-            });
+            // 更新数值
+            batteryVoltageElement.textContent = data.voltage.toFixed(2);
+            batteryPercentageElement.textContent = `${data.capacity.toFixed(0)}%`;
+            batteryLevelElement.style.width = `${data.capacity}%`;
+            batteryTemperatureElement.textContent = `温度: ${data.temperature.toFixed(1)}°C`;
             
-            solarData.slice(0, 10).forEach(item => {
-                addDataToTable(item, solarTableBody, 'solar');
-            });
+            // 更新电池状态
+            batteryStatusElement.textContent = data.status;
+            batteryStatusElement.className = 'status-indicator';
             
-            powerData.slice(0, 10).forEach(item => {
-                addDataToTable(item, powerTableBody, 'power');
-            });
+            if (data.status.includes('充电')) {
+                batteryStatusElement.classList.add('charging');
+            } else if (data.status.includes('放电')) {
+                batteryStatusElement.classList.add('discharging');
+            } else if (data.status.includes('满电')) {
+                batteryStatusElement.classList.add('full');
+            }
             
-            weatherData.slice(0, 10).forEach(item => {
-                addDataToTable(item, weatherTableBody, 'weather');
-            });
+            // 移除动画效果
+            setTimeout(() => {
+                batteryVoltageElement.classList.remove('pulse');
+            }, 2000);
             
-            priceData.slice(0, 10).forEach(item => {
-                addDataToTable(item, priceTableBody, 'price');
-            });
+            // 更新图表数据
+            const time = formatTime(data.timestamp);
             
-            // 填充图表数据
-            const chartData = batteryData.slice(0, 20).reverse();
-            const labels = chartData.map(item => formatTime(item.timestamp));
+            // 限制图表数据点数量
+            if (batteryChart.data.labels.length > 20) {
+                batteryChart.data.labels.shift();
+                batteryChart.data.datasets.forEach(dataset => {
+                    dataset.data.shift();
+                });
+            }
             
-            // 更新电池图表
-            batteryChart.data.labels = labels;
-            batteryChart.data.datasets[0].data = chartData.map(item => item.voltage);
-            batteryChart.data.datasets[1].data = chartData.map(item => item.capacity);
-            batteryChart.data.datasets[2].data = chartData.map(item => item.temperature);
-            batteryChart.update();
-            
-            // 更新太阳能图表
-            const solarChartData = solarData.slice(0, 20).reverse();
-            solarChart.data.labels = solarChartData.map(item => formatTime(item.timestamp));
-            solarChart.data.datasets[0].data = solarChartData.map(item => item.voltage);
-            solarChart.data.datasets[1].data = solarChartData.map(item => item.current);
-            solarChart.data.datasets[2].data = solarChartData.map(item => item.power);
-            solarChart.update();
+            // 添加新数据点
+            if (!batteryChart.data.labels.includes(time)) {
+                batteryChart.data.labels.push(time);
+                batteryChart.data.datasets[0].data.push(data.voltage);
+                batteryChart.data.datasets[1].data.push(data.capacity);
+                batteryChart.data.datasets[2].data.push(data.temperature);
+                batteryChart.update();
+            }
             
             // 更新能源图表
-            energyChart.data.labels = labels;
-            energyChart.data.datasets[0].data = chartData.map(item => item.voltage);
-            energyChart.data.datasets[1].data = solarChartData.map(item => item.power);
-            energyChart.data.datasets[2].data = powerData.slice(0, 20).reverse().map(item => item.load_power);
-            energyChart.update();
-        })
-        .catch(error => {
-            console.error('获取历史数据时出错:', error);
+            if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
+                energyChart.data.labels.push(time);
+                energyChart.data.datasets[0].data.push(data.voltage);
+                energyChart.update();
+            }
+        }
+        
+        // 更新太阳能板状态
+        function updateSolarStatus(data) {
+            if (!data) return;
+            
+            // 添加动画效果
+            solarPowerElement.classList.add('pulse');
+            
+            // 更新数值
+            solarPowerElement.textContent = data.power.toFixed(1);
+            solarVoltageElement.textContent = `电压: ${data.voltage.toFixed(1)}V`;
+            solarCurrentElement.textContent = `电流: ${data.current.toFixed(2)}A`;
+            solarEfficiencyElement.textContent = `效率: ${data.efficiency.toFixed(1)}%`;
+            solarTemperatureElement.textContent = `温度: ${data.temperature.toFixed(1)}°C`;
+            
+            // 移除动画效果
+            setTimeout(() => {
+                solarPowerElement.classList.remove('pulse');
+            }, 2000);
+            
+            // 更新图表数据
+            const time = formatTime(data.timestamp);
+            
+            // 限制图表数据点数量
+            if (solarChart.data.labels.length > 20) {
+                solarChart.data.labels.shift();
+                solarChart.data.datasets.forEach(dataset => {
+                    dataset.data.shift();
+                });
+            }
+            
+            // 添加新数据点
+            if (!solarChart.data.labels.includes(time)) {
+                solarChart.data.labels.push(time);
+                solarChart.data.datasets[0].data.push(data.voltage);
+                solarChart.data.datasets[1].data.push(data.current);
+                solarChart.data.datasets[2].data.push(data.power);
+                solarChart.update();
+            }
+            
+            // 更新能源图表
+            if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
+                energyChart.data.datasets[1].data.push(data.power);
+                energyChart.update();
+            }
+        }
+        
+        // 更新系统供电状态
+        function updatePowerStatus(data) {
+            if (!data) return;
+            
+            // 添加动画效果
+            loadPowerElement.classList.add('pulse');
+            
+            // 更新数值
+            loadPowerElement.textContent = data.load_power.toFixed(1);
+            
+            // 更新供电来源状态
+            if (data.source === '太阳能') {
+                solarPowerStatusElement.classList.add('active');
+                solarPowerStatusElement.classList.remove('inactive');
+                gridPowerStatusElement.classList.add('inactive');
+                gridPowerStatusElement.classList.remove('active');
+            } else {
+                gridPowerStatusElement.classList.add('active');
+                gridPowerStatusElement.classList.remove('inactive');
+                solarPowerStatusElement.classList.add('inactive');
+                solarPowerStatusElement.classList.remove('active');
+            }
+            
+            // 更新状态文本
+            solarStatusTextElement.textContent = data.solar_status;
+            gridStatusTextElement.textContent = data.grid_status;
+            
+            // 移除动画效果
+            setTimeout(() => {
+                loadPowerElement.classList.remove('pulse');
+            }, 2000);
+            
+            // 更新能源图表
+            const time = formatTime(data.timestamp);
+            if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
+                energyChart.data.datasets[2].data.push(data.load_power);
+                energyChart.update();
+            }
+        }
+        
+        // 更新天气状态
+        function updateWeatherStatus(data) {
+            if (!data) return;
+            
+            // 更新天气图标
+            let weatherIconClass = 'fa-sun';
+            if (data.weather_condition.includes('多云')) {
+                weatherIconClass = 'fa-cloud-sun';
+            } else if (data.weather_condition.includes('阴')) {
+                weatherIconClass = 'fa-cloud';
+            } else if (data.weather_condition.includes('雨')) {
+                weatherIconClass = 'fa-cloud-rain';
+            } else if (data.weather_condition.includes('雪')) {
+                weatherIconClass = 'fa-snowflake';
+            }
+            
+            weatherIconElement.innerHTML = `<i class="fas ${weatherIconClass}"></i>`;
+            
+            // 更新数值
+            weatherConditionElement.textContent = data.weather_condition;
+            weatherTemperatureElement.textContent = `${data.temperature.toFixed(1)}°C`;
+            weatherHumidityElement.textContent = `${data.humidity.toFixed(0)}%`;
+            solarRadiationElement.textContent = `${data.solar_radiation.toFixed(0)} W/m²`;
+        }
+        
+        // 更新电价信息
+        function updatePriceStatus(data) {
+            if (!data) return;
+            
+            // 添加动画效果
+            electricityPriceElement.classList.add('pulse');
+            
+            // 更新数值
+            electricityPriceElement.textContent = data.price.toFixed(2);
+            
+            // 更新电价等级
+            priceLevelElement.textContent = data.price_level;
+            priceLevelElement.className = 'price-level';
+            
+            if (data.price_level === '峰值') {
+                priceLevelElement.classList.add('peak');
+            } else if (data.price_level === '平值') {
+                priceLevelElement.classList.add('normal');
+            } else if (data.price_level === '谷值') {
+                priceLevelElement.classList.add('valley');
+            }
+            
+            // 更新下次变动时间
+            const nextChangeTime = new Date(data.next_change_time);
+            nextPriceChangeElement.textContent = `下次变动: ${formatDateTime(nextChangeTime)}`;
+            
+            // 移除动画效果
+            setTimeout(() => {
+                electricityPriceElement.classList.remove('pulse');
+            }, 2000);
+        }
+        
+        // 更新所有数据
+        function updateAllData(data) {
+            updateBatteryStatus(data.battery);
+            updateSolarStatus(data.solar);
+            updatePowerStatus(data.powerStatus);
+            updateWeatherStatus(data.weather);
+            updatePriceStatus(data.price);
+        }
+        
+        // 添加数据到表格
+        function addDataToTable(data, tableBody, type) {
+            if (!data) return;
+            
+            const row = document.createElement('tr');
+            
+            switch (type) {
+                case 'battery':
+                    row.innerHTML = `
+                        <td>${formatTime(data.timestamp)}</td>
+                        <td>${data.voltage.toFixed(2)}</td>
+                        <td>${data.capacity.toFixed(1)}</td>
+                        <td>${data.status}</td>
+                        <td>${data.temperature ? data.temperature.toFixed(1) : 'N/A'}</td>
+                    `;
+                    break;
+                case 'solar':
+                    row.innerHTML = `
+                        <td>${formatTime(data.timestamp)}</td>
+                        <td>${data.voltage.toFixed(2)}</td>
+                        <td>${data.current.toFixed(2)}</td>
+                        <td>${data.power.toFixed(1)}</td>
+                        <td>${data.temperature ? data.temperature.toFixed(1) : 'N/A'}</td>
+                        <td>${data.efficiency ? data.efficiency.toFixed(1) : 'N/A'}</td>
+                    `;
+                    break;
+                case 'power':
+                    row.innerHTML = `
+                        <td>${formatTime(data.timestamp)}</td>
+                        <td>${data.source}</td>
+                        <td>${data.grid_status}</td>
+                        <td>${data.solar_status}</td>
+                        <td>${data.load_power.toFixed(1)}</td>
+                    `;
+                    break;
+                case 'weather':
+                    row.innerHTML = `
+                        <td>${formatTime(data.timestamp)}</td>
+                        <td>${data.temperature.toFixed(1)}</td>
+                        <td>${data.humidity.toFixed(0)}</td>
+                        <td>${data.weather_condition}</td>
+                        <td>${data.solar_radiation.toFixed(0)}</td>
+                    `;
+                    break;
+                case 'price':
+                    row.innerHTML = `
+                        <td>${formatTime(data.timestamp)}</td>
+                        <td>${data.price.toFixed(2)}</td>
+                        <td>${data.price_level}</td>
+                        <td>${formatDateTime(data.next_change_time)}</td>
+                    `;
+                    break;
+            }
+            
+            // 添加行动画
+            row.style.opacity = '0';
+            row.style.transform = 'translateY(-10px)';
+            row.style.transition = 'all 0.3s ease';
+            
+            // 限制表格行数
+            if (tableBody.children.length >= 10) {
+                tableBody.removeChild(tableBody.lastChild);
+            }
+            
+            tableBody.insertBefore(row, tableBody.firstChild);
+            
+            // 触发动画
+            setTimeout(() => {
+                row.style.opacity = '1';
+                row.style.transform = 'translateY(0)';
+            }, 10);
+        }
+        
+        // 监听 Socket.IO 事件
+        socket.on('connect', () => {
+            console.log('已连接到服务器');
+            // 只有当connectionStatus元素存在时才更新它
+            if (connectionStatus) {
+                connectionStatus.textContent = '已连接';
+                connectionStatus.className = 'status online';
+            }
         });
-    });
-    
-    // 图表标签切换
-    const chartTabs = document.querySelectorAll('.chart-tab');
-    const chartContents = document.querySelectorAll('.chart-content');
-    
-    chartTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const target = tab.getAttribute('data-chart');
-            
-            // 移除所有活动状态
-            chartTabs.forEach(t => t.classList.remove('active'));
-            chartContents.forEach(c => c.classList.remove('active'));
-            
-            // 添加活动状态到当前标签
-            tab.classList.add('active');
-            document.querySelector(`.chart-content[data-content="${target}"]`).classList.add('active');
+        
+        socket.on('disconnect', () => {
+            console.log('与服务器断开连接');
+            // 只有当connectionStatus元素存在时才更新它
+            if (connectionStatus) {
+                connectionStatus.textContent = '已断开';
+                connectionStatus.className = 'status offline';
+            }
         });
-    });
-    
-    // 数据表格标签切换
-    const dataTabs = document.querySelectorAll('.data-tab');
-    const dataContents = document.querySelectorAll('.data-content');
-    
-    dataTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const target = tab.getAttribute('data-table');
+        
+        socket.on('data-update', (data) => {
+            console.log('收到数据更新:', data);
+            updateAllData(data);
             
-            // 移除所有活动状态
-            dataTabs.forEach(t => t.classList.remove('active'));
-            dataContents.forEach(c => c.classList.remove('active'));
-            
-            // 添加活动状态到当前标签
-            tab.classList.add('active');
-            document.querySelector(`.data-content[data-content="${target}"]`).classList.add('active');
+            // 添加数据到表格
+            addDataToTable(data.battery, batteryTableBody, 'battery');
+            addDataToTable(data.solar, solarTableBody, 'solar');
+            addDataToTable(data.powerStatus, powerTableBody, 'power');
+            addDataToTable(data.weather, weatherTableBody, 'weather');
+            addDataToTable(data.price, priceTableBody, 'price');
         });
-    });
-</script>
+        
+        // 页面加载时获取历史数据
+        window.addEventListener('load', () => {
+            // 添加加载动画
+            const loadingElement = document.createElement('div');
+            loadingElement.style.position = 'fixed';
+            loadingElement.style.top = '0';
+            loadingElement.style.left = '0';
+            loadingElement.style.width = '100%';
+            loadingElement.style.height = '100%';
+            loadingElement.style.backgroundColor = 'rgba(6, 13, 44, 0.9)';
+            loadingElement.style.display = 'flex';
+            loadingElement.style.justifyContent = 'center';
+            loadingElement.style.alignItems = 'center';
+            loadingElement.style.zIndex = '9999';
+            loadingElement.style.transition = 'opacity 0.5s ease';
+            loadingElement.innerHTML = '<div style="color: #00a8ff; font-size: 1.5rem;">加载数据中...</div>';
+            document.body.appendChild(loadingElement);
+            
+            // 获取所有最新数据
+            fetch('/api/all-latest-data')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('获取最新数据:', data);
+                    updateAllData(data);
+                    
+                    // 移除加载动画
+                    loadingElement.style.opacity = '0';
+                    setTimeout(() => {
+                        document.body.removeChild(loadingElement);
+                    }, 500);
+                })
+                .catch(error => {
+                    console.error('获取最新数据时出错:', error);
+                    // 只有当connectionStatus元素存在时才更新它
+                    if (connectionStatus) {
+                        connectionStatus.textContent = '数据加载失败';
+                        connectionStatus.className = 'status offline';
+                    }
+                    
+                    // 移除加载动画
+                    loadingElement.style.opacity = '0';
+                    setTimeout(() => {
+                        document.body.removeChild(loadingElement);
+                    }, 500);
+                });
+            
+            // 获取历史数据
+            Promise.all([
+                fetch('/api/battery-data').then(res => res.json()),
+                fetch('/api/solar-data').then(res => res.json()),
+                fetch('/api/power-status').then(res => res.json()),
+                fetch('/api/weather-data').then(res => res.json()),
+                fetch('/api/electricity-price').then(res => res.json()),
+                fetch('/api/energy-data').then(res => res.json())
+            ])
+            .then(([batteryData, solarData, powerData, weatherData, priceData, energyData]) => {
+                console.log('获取历史数据成功');
+                
+                // 填充表格数据
+                if (batteryTableBody) batteryTableBody.innerHTML = '';
+                if (solarTableBody) solarTableBody.innerHTML = '';
+                if (powerTableBody) powerTableBody.innerHTML = '';
+                if (weatherTableBody) weatherTableBody.innerHTML = '';
+                if (priceTableBody) priceTableBody.innerHTML = '';
+                
+                if (batteryData && batteryData.length > 0 && batteryTableBody) {
+                    batteryData.slice(0, 10).forEach(item => {
+                        addDataToTable(item, batteryTableBody, 'battery');
+                    });
+                }
+                
+                if (solarData && solarData.length > 0 && solarTableBody) {
+                    solarData.slice(0, 10).forEach(item => {
+                        addDataToTable(item, solarTableBody, 'solar');
+                    });
+                }
+                
+                if (powerData && powerData.length > 0 && powerTableBody) {
+                    powerData.slice(0, 10).forEach(item => {
+                        addDataToTable(item, powerTableBody, 'power');
+                    });
+                }
+                
+                if (weatherData && weatherData.length > 0 && weatherTableBody) {
+                    weatherData.slice(0, 10).forEach(item => {
+                        addDataToTable(item, weatherTableBody, 'weather');
+                    });
+                }
+                
+                if (priceData && priceData.length > 0 && priceTableBody) {
+                    priceData.slice(0, 10).forEach(item => {
+                        addDataToTable(item, priceTableBody, 'price');
+                    });
+                }
+                
+                // 填充图表数据
+                if (batteryData && batteryData.length > 0) {
+                    const chartData = batteryData.slice(0, 20).reverse();
+                    const labels = chartData.map(item => formatTime(item.timestamp));
+                    
+                    // 更新电池图表
+                    if (batteryChart) {
+                        batteryChart.data.labels = labels;
+                        batteryChart.data.datasets[0].data = chartData.map(item => item.voltage);
+                        batteryChart.data.datasets[1].data = chartData.map(item => item.capacity);
+                        batteryChart.data.datasets[2].data = chartData.map(item => item.temperature);
+                        batteryChart.update();
+                    }
+                    
+                    // 更新能源图表
+                    if (energyChart) {
+                        energyChart.data.labels = labels;
+                        energyChart.data.datasets[0].data = chartData.map(item => item.voltage);
+                        
+                        if (solarData && solarData.length > 0) {
+                            const solarChartData = solarData.slice(0, 20).reverse();
+                            energyChart.data.datasets[1].data = solarChartData.map(item => item.power);
+                        }
+                        
+                        if (powerData && powerData.length > 0) {
+                            energyChart.data.datasets[2].data = powerData.slice(0, 20).reverse().map(item => item.load_power);
+                        }
+                        
+                        energyChart.update();
+                    }
+                }
+                
+                // 更新太阳能图表
+                if (solarData && solarData.length > 0 && solarChart) {
+                    const solarChartData = solarData.slice(0, 20).reverse();
+                    solarChart.data.labels = solarChartData.map(item => formatTime(item.timestamp));
+                    solarChart.data.datasets[0].data = solarChartData.map(item => item.voltage);
+                    solarChart.data.datasets[1].data = solarChartData.map(item => item.current);
+                    solarChart.data.datasets[2].data = solarChartData.map(item => item.power);
+                    solarChart.update();
+                }
+            })
+            .catch(error => {
+                console.error('获取历史数据时出错:', error);
+            });
+        });
+        
+        // 图表标签切换
+        const chartTabs = document.querySelectorAll('.chart-tab');
+        const chartContents = document.querySelectorAll('.chart-content');
+        
+        chartTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.getAttribute('data-chart');
+                
+                // 移除所有活动状态
+                chartTabs.forEach(t => t.classList.remove('active'));
+                chartContents.forEach(c => c.classList.remove('active'));
+                
+                // 添加活动状态到当前标签
+                tab.classList.add('active');
+                document.querySelector(`.chart-content[data-content="${target}"]`).classList.add('active');
+            });
+        });
+        
+        // 数据表格标签切换
+        const dataTabs = document.querySelectorAll('.data-tab');
+        const dataContents = document.querySelectorAll('.data-content');
+        
+        dataTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.getAttribute('data-table');
+                
+                // 移除所有活动状态
+                dataTabs.forEach(t => t.classList.remove('active'));
+                dataContents.forEach(c => c.classList.remove('active'));
+                
+                // 添加活动状态到当前标签
+                tab.classList.add('active');
+                document.querySelector(`.data-content[data-content="${target}"]`).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
