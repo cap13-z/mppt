@@ -105,7 +105,7 @@
         }
         
         h1::before, h1::after {
-            content: '•';
+            content: '能源演示系统';
             color: var(--accent-color);
             position: absolute;
             top: 50%;
@@ -774,7 +774,7 @@
                 <h3>电价信息</h3>
                 <div class="value" id="electricity-price">0.00</div>
                 <div class="unit">元/kWh</div>
-                <div class="price-level" id="price-level">平值</div>
+                <div class="price-level" id="price-level">平价</div>
                 <div class="next-change" id="next-price-change">下次变动: 未知</div>
                 <div class="data-source" id="price-data-source"></div>
                 <div class="real-time-indicator">
@@ -930,7 +930,7 @@
     </div>
     
     <script>
-        // 连接到 Socket.IO 服务器
+        // 连接到 Socket.IO 服务
         const socket = io();
         
         // 获取 DOM 元素 - 电池状态
@@ -1290,7 +1290,7 @@
             }
         });
         
-        // 初始化其他图表 (powerChart, weatherChart, priceChart)
+        // 初始化其他图表(powerChart, weatherChart, priceChart)
         // 这里省略了其他图表的初始化代码，实际使用时需要添加
         
         // 格式化时间
@@ -1318,7 +1318,6 @@
             batteryLevelElement.style.width = `${data.capacity}%`;
             
             // 更新电池状态
-            batteryStatusElement.textContent = data.status;
             batteryStatusElement.className = 'status-indicator';
             
             if (data.status.includes('充电')) {
@@ -1451,17 +1450,8 @@
                     weatherWindElement.textContent = '无风向数据';
                 }
                 
-                // 更新数据来源
-                if (data.isSimulated) {
-                    weatherSourceElement.textContent = '(模拟数据)';
-                    weatherSourceElement.style.color = '#ff9800';
-                } else if (data.partiallySimulated) {
-                    weatherSourceElement.textContent = '(部分模拟)';
-                    weatherSourceElement.style.color = '#9e9e9e';
-                } else {
-                    weatherSourceElement.textContent = '(心知天气)';
-                    weatherSourceElement.style.color = '#4caf50';
-                }
+                // 不再显示数据来源标记
+                weatherSourceElement.textContent = '';
                 
                 // 太阳辐射（可能不存在）
                 if (data.solar_radiation !== undefined) {
@@ -1494,11 +1484,11 @@
             priceLevelElement.textContent = data.price_level;
             priceLevelElement.className = 'price-level';
             
-            if (data.price_level === '峰值') {
+            if (data.price_level === '峰价') {
                 priceLevelElement.classList.add('peak');
-            } else if (data.price_level === '平值') {
+            } else if (data.price_level === '平价') {
                 priceLevelElement.classList.add('normal');
-            } else if (data.price_level === '谷值') {
+            } else if (data.price_level === '谷价') {
                 priceLevelElement.classList.add('valley');
             }
             
@@ -1578,7 +1568,7 @@
                     break;
             }
             
-            // 添加行动画
+            // 添加行动
             row.style.opacity = '0';
             row.style.transform = 'translateY(-10px)';
             row.style.transition = 'all 0.3s ease';
@@ -1600,7 +1590,7 @@
         // 监听 Socket.IO 事件
         socket.on('connect', () => {
             console.log('已连接到服务器');
-            // 只有当connectionStatus元素存在时才更新它
+            // 只有当connectionStatus元素存在时才更新
             if (connectionStatus) {
                 connectionStatus.textContent = '已连接';
                 connectionStatus.className = 'status online';
@@ -1609,7 +1599,7 @@
         
         socket.on('disconnect', () => {
             console.log('与服务器断开连接');
-            // 只有当connectionStatus元素存在时才更新它
+            // 只有当connectionStatus元素存在时才更新
             if (connectionStatus) {
                 connectionStatus.textContent = '已断开';
                 connectionStatus.className = 'status offline';
@@ -1618,7 +1608,7 @@
         
         // 处理从阿里云接收的设备数据
         socket.on('device-data', (data) => {
-            console.log('收到阿里云设备数据:', data);
+            console.log('收到阿里云设备数据', data);
             
             // 解析阿里云数据并更新界面
             if (data.battery) {
@@ -1659,13 +1649,7 @@
                     temperature: data.weather.temperature || 0,
                     humidity: data.weather.humidity || 0,
                     condition: data.weather.condition || 'unknown',
-                    weather: data.weather.condition || 'unknown',  // 添加weather字段以兼容updateWeatherStatus函数
-                    weather_condition: data.weather.condition || 'unknown',  // 添加weather_condition字段以确保兼容性
-                    windDirection: data.weather.windDirection || '',
-                    windScale: data.weather.windScale || '',
                     solar_radiation: data.weather.radiation || 0,
-                    isSimulated: data.weather.isSimulated || false,
-                    partiallySimulated: data.weather.partiallySimulated || false,  // 添加部分模拟标记
                     timestamp: data.timestamp || new Date().toISOString()
                 });
             }
@@ -1711,7 +1695,7 @@
             loadingElement.style.alignItems = 'center';
             loadingElement.style.zIndex = '9999';
             loadingElement.style.transition = 'opacity 0.5s ease';
-            loadingElement.innerHTML = '<div style="color: #00a8ff; font-size: 1.5rem;">加载数据中...</div>';
+            loadingElement.innerHTML = '<div style="color: #00a8ff; font-size: 1.5rem;">加载数据...</div>';
             document.body.appendChild(loadingElement);
             
             // 延迟一秒，模拟加载过程
@@ -1727,7 +1711,7 @@
             fetch('/api/hubei-electricity-price')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('获取湖北省实时电价:', data);
+                    console.log('获取湖北省实时电价', data);
                     updatePriceStatus(data);
                 })
                 .catch(error => {
@@ -1749,12 +1733,12 @@
             fetch('/api/all-latest-data')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('获取最新数据:', data);
+                    console.log('获取最新数据', data);
                     updateAllData(data);
                 })
                 .catch(error => {
                     console.error('获取最新数据时出错:', error);
-                    // 只有当connectionStatus元素存在时才更新它
+                    // 只有当connectionStatus元素存在时才更新
                     if (connectionStatus) {
                         connectionStatus.textContent = '数据加载失败';
                         connectionStatus.className = 'status offline';
@@ -1860,7 +1844,7 @@
                 fetch('/api/hubei-electricity-price')
                     .then(response => response.json())
                     .then(data => {
-                        console.log('刷新湖北省实时电价:', data);
+                        console.log('刷新湖北省实时电价', data);
                         updatePriceStatus(data);
                     })
                     .catch(error => {
