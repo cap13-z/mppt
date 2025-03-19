@@ -105,10 +105,12 @@
         }
         
         h1::before, h1::after {
-            content: '能源演示系统';
-            color: var(--accent-color);
+            content: '';
             position: absolute;
             top: 50%;
+            width: 20px;
+            height: 4px;
+            background-color: var(--accent-color);
             transform: translateY(-50%);
         }
         
@@ -998,7 +1000,7 @@
                         yAxisID: 'y'
                     },
                     {
-                        label: '太阳能功率 (W)',
+                        label: '太阳能功率(W)',
                         data: [],
                         borderColor: '#ffa502',
                         backgroundColor: 'rgba(255, 165, 2, 0.1)',
@@ -1312,20 +1314,27 @@
             // 添加动画效果
             batteryVoltageElement.classList.add('pulse');
             
-            // 更新数值
+            // 更新数据
             batteryVoltageElement.textContent = data.voltage.toFixed(2);
             batteryPercentageElement.textContent = `${data.capacity.toFixed(0)}%`;
             batteryLevelElement.style.width = `${data.capacity}%`;
             
             // 更新电池状态
+            batteryStatusElement.textContent = data.status || '充电中';
             batteryStatusElement.className = 'status-indicator';
             
-            if (data.status.includes('充电')) {
+            // 检查status是否存在，然后再访问其方法
+            if (data.status) {
+                if (data.status.includes('充电')) {
+                    batteryStatusElement.classList.add('charging');
+                } else if (data.status.includes('放电')) {
+                    batteryStatusElement.classList.add('discharging');
+                } else if (data.status.includes('满电')) {
+                    batteryStatusElement.classList.add('full');
+                }
+            } else {
+                // 默认为充电状态
                 batteryStatusElement.classList.add('charging');
-            } else if (data.status.includes('放电')) {
-                batteryStatusElement.classList.add('discharging');
-            } else if (data.status.includes('满电')) {
-                batteryStatusElement.classList.add('full');
             }
             
             // 移除动画效果
@@ -1347,7 +1356,7 @@
             // 添加动画效果
             solarPowerElement.classList.add('pulse');
             
-            // 更新数值
+            // 更新数据
             solarPowerElement.textContent = data.power.toFixed(1);
             solarVoltageElement.textContent = `电压: ${data.voltage.toFixed(1)}V`;
             solarCurrentElement.textContent = `电流: ${data.current.toFixed(2)}A`;
@@ -1372,7 +1381,7 @@
             // 添加动画效果
             loadPowerElement.classList.add('pulse');
             
-            // 更新数值
+            // 更新数据
             loadPowerElement.textContent = data.load_power.toFixed(1);
             
             // 更新供电来源状态
@@ -1409,16 +1418,12 @@
             let weatherIconClass = 'fa-sun';
             if (data.weather && data.weather.includes('多云')) {
                 weatherIconClass = 'fa-cloud-sun';
-            } else if (data.weather && data.weather.includes('阴')) {
-                weatherIconClass = 'fa-cloud';
             } else if (data.weather && data.weather.includes('雨')) {
                 weatherIconClass = 'fa-cloud-rain';
             } else if (data.weather && data.weather.includes('雪')) {
                 weatherIconClass = 'fa-snowflake';
             } else if (data.weather_condition && data.weather_condition.includes('多云')) {
                 weatherIconClass = 'fa-cloud-sun';
-            } else if (data.weather_condition && data.weather_condition.includes('阴')) {
-                weatherIconClass = 'fa-cloud';
             } else if (data.weather_condition && data.weather_condition.includes('雨')) {
                 weatherIconClass = 'fa-cloud-rain';
             } else if (data.weather_condition && data.weather_condition.includes('雪')) {
@@ -1427,7 +1432,7 @@
             
             weatherIconElement.innerHTML = `<i class="fas ${weatherIconClass}"></i>`;
             
-            // 更新数值
+            // 更新数据
             if (data.weather) {
                 // 新的API格式
                 weatherConditionElement.textContent = data.weather || '未知';
@@ -1450,8 +1455,14 @@
                     weatherWindElement.textContent = '无风向数据';
                 }
                 
-                // 不再显示数据来源标记
-                weatherSourceElement.textContent = '';
+                // 更新数据来源
+                if (data.isSimulated) {
+                    weatherSourceElement.textContent = '(模拟数据)';
+                    weatherSourceElement.style.color = '#ff9800';
+                } else {
+                    weatherSourceElement.textContent = '(心知天气)';
+                    weatherSourceElement.style.color = '#4caf50';
+                }
                 
                 // 太阳辐射（可能不存在）
                 if (data.solar_radiation !== undefined) {
@@ -1477,7 +1488,7 @@
             // 添加动画效果
             electricityPriceElement.classList.add('pulse');
             
-            // 更新数值
+            // 更新数据
             electricityPriceElement.textContent = data.price.toFixed(2);
             
             // 更新电价等级
@@ -1695,7 +1706,7 @@
             loadingElement.style.alignItems = 'center';
             loadingElement.style.zIndex = '9999';
             loadingElement.style.transition = 'opacity 0.5s ease';
-            loadingElement.innerHTML = '<div style="color: #00a8ff; font-size: 1.5rem;">加载数据...</div>';
+            loadingElement.innerHTML = '<div style="color: #00a8ff; font-size: 1.5rem;">加载数据中...</div>';
             document.body.appendChild(loadingElement);
             
             // 延迟一秒，模拟加载过程
@@ -1895,7 +1906,7 @@
                 // 添加新数据点
                 batteryChart.data.labels.push(formatTime(data.timestamp));
                 
-                // 保持最多显示20个数据点
+                // 保持最多显示0个数据点
                 if (batteryChart.data.labels.length > 20) {
                     batteryChart.data.labels.shift();
                     batteryChart.data.datasets.forEach(dataset => {
@@ -1915,7 +1926,7 @@
                 // 添加新数据点
                 solarChart.data.labels.push(formatTime(data.timestamp));
                 
-                // 保持最多显示20个数据点
+                // 保持最多显示0个数据点
                 if (solarChart.data.labels.length > 20) {
                     solarChart.data.labels.shift();
                     solarChart.data.datasets.forEach(dataset => {
