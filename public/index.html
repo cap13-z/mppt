@@ -6,8 +6,11 @@
     <title>能源演示系统</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Socket.IO 不再注释 -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 我们不再需要模拟数据脚本 -->
+    <!-- <script src="js/mock-data.js"></script> -->
     <style>
         /* 基本样式 */
         :root {
@@ -125,11 +128,72 @@
         /* 仪表盘样式 */
         .dashboard {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
             margin-bottom: 40px;
         }
         
+        /* 系统供电状态卡片样式 - 不再占据整行 */
+        .system-card {
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, rgba(13, 28, 75, 0.8), rgba(6, 13, 44, 0.9));
+            border: 1px solid rgba(0, 168, 255, 0.5);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        .system-card::before {
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color), var(--primary-color));
+            height: 6px;
+        }
+        
+        .system-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+        
+        .system-card .value {
+            font-size: 3rem;
+        }
+        
+        .system-card .system-status {
+            display: flex;
+            justify-content: space-around;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .system-card .status-item {
+            text-align: center;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: rgba(0, 0, 0, 0.2);
+            min-width: 100px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .system-card .status-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .system-card .status-item i {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .system-card .status-item.active i {
+            color: var(--success-color);
+        }
+        
+        .system-card .status-item.inactive i {
+            color: var(--text-secondary);
+        }
+        
+        /* 基本卡片样式 */
         .card {
             background-color: var(--card-bg);
             border-radius: 10px;
@@ -227,41 +291,6 @@
             background-color: rgba(9, 132, 227, 0.2);
             color: #0984e3;
             border: 1px solid rgba(9, 132, 227, 0.3);
-        }
-        
-        /* 系统状态卡片 */
-        .system-card {
-            grid-column: span 2;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .system-card .system-status {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 15px;
-        }
-        
-        .system-card .status-item {
-            text-align: center;
-            padding: 10px;
-            border-radius: 8px;
-            background-color: rgba(0, 0, 0, 0.2);
-            min-width: 120px;
-        }
-        
-        .system-card .status-item i {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            display: block;
-        }
-        
-        .system-card .status-item.active i {
-            color: var(--success-color);
-        }
-        
-        .system-card .status-item.inactive i {
-            color: var(--text-secondary);
         }
         
         /* 天气卡片 */
@@ -499,18 +528,21 @@
         }
         
         /* 响应式设计 */
+        @media (max-width: 1200px) {
+            .dashboard {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
         @media (max-width: 768px) {
             .dashboard {
                 grid-template-columns: 1fr;
             }
             
-            .system-card {
-                grid-column: span 1;
-            }
-            
             .system-card .system-status {
                 flex-direction: column;
-                gap: 10px;
+                align-items: center;
+                gap: 15px;
             }
             
             .chart-container {
@@ -621,6 +653,32 @@
             font-weight: bold;
             text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
         }
+        
+        /* 数据来源和实时指示器样式 */
+        .data-source {
+            font-size: 0.7rem;
+            margin-top: 5px;
+            color: var(--text-secondary);
+        }
+        
+        .real-time-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 230, 118, 0.2);
+            color: var(--success-color);
+            border: 1px solid rgba(0, 230, 118, 0.3);
+            border-radius: 20px;
+            padding: 2px 8px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .real-time-indicator i {
+            font-size: 0.6rem;
+        }
     </style>
 </head>
 <body>
@@ -634,35 +692,9 @@
             <p>实时监控和分析能源数据</p>
         </header>
         
-        <div class="dashboard">
-            <!-- 电池状态卡片 -->
-            <div class="card">
-                <div class="icon"><i class="fas fa-car-battery"></i></div>
-                <h3>电池状态</h3>
-                <div class="battery-container">
-                    <div class="battery-level" id="battery-level"></div>
-                    <div class="battery-text" id="battery-percentage">0%</div>
-                </div>
-                <div class="value" id="battery-voltage">0</div>
-                <div class="unit">V</div>
-                <div class="status-indicator" id="battery-status">未知</div>
-                <div class="unit" id="battery-temperature">温度: 0°C</div>
-            </div>
-            
-            <!-- 太阳能板卡片 -->
-            <div class="card">
-                <div class="icon"><i class="fas fa-solar-panel"></i></div>
-                <h3>太阳能板</h3>
-                <div class="value" id="solar-power">0</div>
-                <div class="unit">W</div>
-                <div class="unit" id="solar-voltage">电压: 0V</div>
-                <div class="unit" id="solar-current">电流: 0A</div>
-                <div class="unit" id="solar-efficiency">效率: 0%</div>
-                <div class="unit" id="solar-temperature">温度: 0°C</div>
-            </div>
-            
-            <!-- 系统供电状态卡片 -->
-            <div class="card system-card">
+        <!-- 第一排：系统供电状态卡片 -->
+        <div class="dashboard" style="margin-bottom: 20px; display: flex; justify-content: center;">
+            <div class="card system-card" style="width: 50%; grid-column: auto;">
                 <div class="icon"><i class="fas fa-plug"></i></div>
                 <h3>系统供电状态</h3>
                 <div class="value" id="load-power">0</div>
@@ -680,11 +712,38 @@
                     </div>
                 </div>
             </div>
+        </div>
+        
+        <!-- 第二排：其他卡片 -->
+        <div class="dashboard">
+            <!-- 电池状态卡片 -->
+            <div class="card">
+                <div class="icon"><i class="fas fa-car-battery"></i></div>
+                <h3>电池状态</h3>
+                <div class="battery-container">
+                    <div class="battery-level" id="battery-level"></div>
+                    <div class="battery-text" id="battery-percentage">0%</div>
+                </div>
+                <div class="value" id="battery-voltage">0</div>
+                <div class="unit">V</div>
+                <div class="status-indicator" id="battery-status">未知</div>
+            </div>
+            
+            <!-- 太阳能板卡片 -->
+            <div class="card">
+                <div class="icon"><i class="fas fa-solar-panel"></i></div>
+                <h3>太阳能板</h3>
+                <div class="value" id="solar-power">0</div>
+                <div class="unit">W</div>
+                <div class="unit" id="solar-voltage">电压: 0V</div>
+                <div class="unit" id="solar-current">电流: 0A</div>
+                <div class="unit" id="solar-efficiency">效率: 0%</div>
+            </div>
             
             <!-- 天气卡片 -->
             <div class="card weather-card">
                 <div class="icon"><i class="fas fa-cloud-sun"></i></div>
-                <h3>天气状况</h3>
+                <h3>天气状况 <small id="weather-source"></small></h3>
                 <div class="weather-icon" id="weather-icon">
                     <i class="fas fa-sun"></i>
                 </div>
@@ -697,6 +756,10 @@
                     <div class="weather-detail-item">
                         <i class="fas fa-tint"></i>
                         <div id="weather-humidity">0%</div>
+                    </div>
+                    <div class="weather-detail-item">
+                        <i class="fas fa-wind"></i>
+                        <div id="weather-wind">无风向数据</div>
                     </div>
                     <div class="weather-detail-item">
                         <i class="fas fa-sun"></i>
@@ -713,6 +776,11 @@
                 <div class="unit">元/kWh</div>
                 <div class="price-level" id="price-level">平值</div>
                 <div class="next-change" id="next-price-change">下次变动: 未知</div>
+                <div class="data-source" id="price-data-source"></div>
+                <div class="real-time-indicator">
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                    <span>湖北省实时电价</span>
+                </div>
             </div>
         </div>
         
@@ -785,7 +853,6 @@
                             <th>电压 (V)</th>
                             <th>容量 (%)</th>
                             <th>状态</th>
-                            <th>温度 (°C)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -802,8 +869,6 @@
                             <th>电压 (V)</th>
                             <th>电流 (A)</th>
                             <th>功率 (W)</th>
-                            <th>温度 (°C)</th>
-                            <th>效率 (%)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -873,14 +938,12 @@
         const batteryPercentageElement = document.getElementById('battery-percentage');
         const batteryLevelElement = document.getElementById('battery-level');
         const batteryStatusElement = document.getElementById('battery-status');
-        const batteryTemperatureElement = document.getElementById('battery-temperature');
         
         // 获取 DOM 元素 - 太阳能板
         const solarPowerElement = document.getElementById('solar-power');
         const solarVoltageElement = document.getElementById('solar-voltage');
         const solarCurrentElement = document.getElementById('solar-current');
         const solarEfficiencyElement = document.getElementById('solar-efficiency');
-        const solarTemperatureElement = document.getElementById('solar-temperature');
         
         // 获取 DOM 元素 - 系统供电状态
         const loadPowerElement = document.getElementById('load-power');
@@ -894,6 +957,8 @@
         const weatherConditionElement = document.getElementById('weather-condition');
         const weatherTemperatureElement = document.getElementById('weather-temperature');
         const weatherHumidityElement = document.getElementById('weather-humidity');
+        const weatherWindElement = document.getElementById('weather-wind');
+        const weatherSourceElement = document.getElementById('weather-source');
         const solarRadiationElement = document.getElementById('solar-radiation');
         
         // 获取 DOM 元素 - 电价
@@ -1046,16 +1111,6 @@
                         fill: true,
                         yAxisID: 'y1'
                     },
-                    {
-                        label: '温度 (°C)',
-                        data: [],
-                        borderColor: '#ff6b81',
-                        backgroundColor: 'rgba(255, 107, 129, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        yAxisID: 'y2'
-                    }
                 ]
             },
             options: {
@@ -1116,20 +1171,6 @@
                         },
                         min: 0,
                         max: 100
-                    },
-                    y2: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        grid: {
-                            drawOnChartArea: false,
-                            color: 'rgba(255, 255, 255, 0.05)'
-                        },
-                        title: {
-                            display: true,
-                            text: '温度 (°C)',
-                            color: '#ff6b81'
-                        }
                     }
                 }
             }
@@ -1275,7 +1316,6 @@
             batteryVoltageElement.textContent = data.voltage.toFixed(2);
             batteryPercentageElement.textContent = `${data.capacity.toFixed(0)}%`;
             batteryLevelElement.style.width = `${data.capacity}%`;
-            batteryTemperatureElement.textContent = `温度: ${data.temperature.toFixed(1)}°C`;
             
             // 更新电池状态
             batteryStatusElement.textContent = data.status;
@@ -1295,31 +1335,10 @@
             }, 2000);
             
             // 更新图表数据
-            const time = formatTime(data.timestamp);
+            updateBatteryChart(data);
             
-            // 限制图表数据点数量
-            if (batteryChart.data.labels.length > 20) {
-                batteryChart.data.labels.shift();
-                batteryChart.data.datasets.forEach(dataset => {
-                    dataset.data.shift();
-                });
-            }
-            
-            // 添加新数据点
-            if (!batteryChart.data.labels.includes(time)) {
-                batteryChart.data.labels.push(time);
-                batteryChart.data.datasets[0].data.push(data.voltage);
-                batteryChart.data.datasets[1].data.push(data.capacity);
-                batteryChart.data.datasets[2].data.push(data.temperature);
-                batteryChart.update();
-            }
-            
-            // 更新能源图表
-            if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
-                energyChart.data.labels.push(time);
-                energyChart.data.datasets[0].data.push(data.voltage);
-                energyChart.update();
-            }
+            // 添加数据到表格
+            addDataToTable(data, batteryTableBody, 'battery');
         }
         
         // 更新太阳能板状态
@@ -1334,7 +1353,6 @@
             solarVoltageElement.textContent = `电压: ${data.voltage.toFixed(1)}V`;
             solarCurrentElement.textContent = `电流: ${data.current.toFixed(2)}A`;
             solarEfficiencyElement.textContent = `效率: ${data.efficiency.toFixed(1)}%`;
-            solarTemperatureElement.textContent = `温度: ${data.temperature.toFixed(1)}°C`;
             
             // 移除动画效果
             setTimeout(() => {
@@ -1342,34 +1360,14 @@
             }, 2000);
             
             // 更新图表数据
-            const time = formatTime(data.timestamp);
+            updateSolarChart(data);
             
-            // 限制图表数据点数量
-            if (solarChart.data.labels.length > 20) {
-                solarChart.data.labels.shift();
-                solarChart.data.datasets.forEach(dataset => {
-                    dataset.data.shift();
-                });
-            }
-            
-            // 添加新数据点
-            if (!solarChart.data.labels.includes(time)) {
-                solarChart.data.labels.push(time);
-                solarChart.data.datasets[0].data.push(data.voltage);
-                solarChart.data.datasets[1].data.push(data.current);
-                solarChart.data.datasets[2].data.push(data.power);
-                solarChart.update();
-            }
-            
-            // 更新能源图表
-            if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
-                energyChart.data.datasets[1].data.push(data.power);
-                energyChart.update();
-            }
+            // 添加数据到表格
+            addDataToTable(data, solarTableBody, 'solar');
         }
         
         // 更新系统供电状态
-        function updatePowerStatus(data) {
+        function updateSystemStatus(data) {
             if (!data) return;
             
             // 添加动画效果
@@ -1400,12 +1398,8 @@
                 loadPowerElement.classList.remove('pulse');
             }, 2000);
             
-            // 更新能源图表
-            const time = formatTime(data.timestamp);
-            if (energyChart.data.labels.length > 0 && !energyChart.data.labels.includes(time)) {
-                energyChart.data.datasets[2].data.push(data.load_power);
-                energyChart.update();
-            }
+            // 添加数据到表格
+            addDataToTable(data, powerTableBody, 'power');
         }
         
         // 更新天气状态
@@ -1414,23 +1408,76 @@
             
             // 更新天气图标
             let weatherIconClass = 'fa-sun';
-            if (data.weather_condition.includes('多云')) {
+            if (data.weather && data.weather.includes('多云')) {
                 weatherIconClass = 'fa-cloud-sun';
-            } else if (data.weather_condition.includes('阴')) {
+            } else if (data.weather && data.weather.includes('阴')) {
                 weatherIconClass = 'fa-cloud';
-            } else if (data.weather_condition.includes('雨')) {
+            } else if (data.weather && data.weather.includes('雨')) {
                 weatherIconClass = 'fa-cloud-rain';
-            } else if (data.weather_condition.includes('雪')) {
+            } else if (data.weather && data.weather.includes('雪')) {
+                weatherIconClass = 'fa-snowflake';
+            } else if (data.weather_condition && data.weather_condition.includes('多云')) {
+                weatherIconClass = 'fa-cloud-sun';
+            } else if (data.weather_condition && data.weather_condition.includes('阴')) {
+                weatherIconClass = 'fa-cloud';
+            } else if (data.weather_condition && data.weather_condition.includes('雨')) {
+                weatherIconClass = 'fa-cloud-rain';
+            } else if (data.weather_condition && data.weather_condition.includes('雪')) {
                 weatherIconClass = 'fa-snowflake';
             }
             
             weatherIconElement.innerHTML = `<i class="fas ${weatherIconClass}"></i>`;
             
             // 更新数值
-            weatherConditionElement.textContent = data.weather_condition;
-            weatherTemperatureElement.textContent = `${data.temperature.toFixed(1)}°C`;
-            weatherHumidityElement.textContent = `${data.humidity.toFixed(0)}%`;
-            solarRadiationElement.textContent = `${data.solar_radiation.toFixed(0)} W/m²`;
+            if (data.weather) {
+                // 新的API格式
+                weatherConditionElement.textContent = data.weather || '未知';
+                weatherTemperatureElement.textContent = `${parseFloat(data.temperature).toFixed(1)}°C`;
+                
+                // 处理湿度（可能是字符串或数字）
+                let humidity = data.humidity;
+                if (typeof humidity === 'string' && humidity.includes('%')) {
+                    weatherHumidityElement.textContent = humidity;
+                } else if (humidity !== undefined) {
+                    weatherHumidityElement.textContent = `${parseFloat(humidity).toFixed(0)}%`;
+                } else {
+                    weatherHumidityElement.textContent = '未知';
+                }
+                
+                // 更新风向和风力
+                if (data.windDirection && data.windScale) {
+                    weatherWindElement.textContent = `${data.windDirection} ${data.windScale}级`;
+                } else {
+                    weatherWindElement.textContent = '无风向数据';
+                }
+                
+                // 更新数据来源
+                if (data.isSimulated) {
+                    weatherSourceElement.textContent = '(模拟数据)';
+                    weatherSourceElement.style.color = '#ff9800';
+                } else if (data.partiallySimulated) {
+                    weatherSourceElement.textContent = '(部分模拟)';
+                    weatherSourceElement.style.color = '#9e9e9e';
+                } else {
+                    weatherSourceElement.textContent = '(心知天气)';
+                    weatherSourceElement.style.color = '#4caf50';
+                }
+                
+                // 太阳辐射（可能不存在）
+                if (data.solar_radiation !== undefined) {
+                    solarRadiationElement.textContent = `${parseFloat(data.solar_radiation).toFixed(0)} W/m²`;
+                } else {
+                    solarRadiationElement.textContent = '未知';
+                }
+            } else {
+                // 旧的API格式
+                weatherConditionElement.textContent = data.weather_condition || '未知';
+                weatherTemperatureElement.textContent = `${parseFloat(data.temperature).toFixed(1)}°C`;
+                weatherHumidityElement.textContent = `${parseFloat(data.humidity).toFixed(0)}%`;
+                solarRadiationElement.textContent = `${parseFloat(data.solar_radiation).toFixed(0)} W/m²`;
+                weatherWindElement.textContent = '无风向数据';
+                weatherSourceElement.textContent = '';
+            }
         }
         
         // 更新电价信息
@@ -1459,6 +1506,12 @@
             const nextChangeTime = new Date(data.next_change_time);
             nextPriceChangeElement.textContent = `下次变动: ${formatDateTime(nextChangeTime)}`;
             
+            // 更新数据来源信息
+            const dataSourceElement = document.getElementById('price-data-source');
+            if (dataSourceElement && data.source) {
+                dataSourceElement.textContent = `数据来源: ${data.source}`;
+            }
+            
             // 移除动画效果
             setTimeout(() => {
                 electricityPriceElement.classList.remove('pulse');
@@ -1469,7 +1522,7 @@
         function updateAllData(data) {
             updateBatteryStatus(data.battery);
             updateSolarStatus(data.solar);
-            updatePowerStatus(data.powerStatus);
+            updateSystemStatus(data.powerStatus);
             updateWeatherStatus(data.weather);
             updatePriceStatus(data.price);
         }
@@ -1487,7 +1540,6 @@
                         <td>${data.voltage.toFixed(2)}</td>
                         <td>${data.capacity.toFixed(1)}</td>
                         <td>${data.status}</td>
-                        <td>${data.temperature ? data.temperature.toFixed(1) : 'N/A'}</td>
                     `;
                     break;
                 case 'solar':
@@ -1496,8 +1548,6 @@
                         <td>${data.voltage.toFixed(2)}</td>
                         <td>${data.current.toFixed(2)}</td>
                         <td>${data.power.toFixed(1)}</td>
-                        <td>${data.temperature ? data.temperature.toFixed(1) : 'N/A'}</td>
-                        <td>${data.efficiency ? data.efficiency.toFixed(1) : 'N/A'}</td>
                     `;
                     break;
                 case 'power':
@@ -1566,6 +1616,74 @@
             }
         });
         
+        // 处理从阿里云接收的设备数据
+        socket.on('device-data', (data) => {
+            console.log('收到阿里云设备数据:', data);
+            
+            // 解析阿里云数据并更新界面
+            if (data.battery) {
+                // 更新电池状态
+                updateBatteryStatus({
+                    voltage: data.battery.voltage || 0,
+                    capacity: data.battery.capacity || 0,
+                    status: data.battery.status || 'unknown',
+                    timestamp: data.timestamp || new Date().toISOString()
+                });
+            }
+            
+            if (data.solar) {
+                // 更新太阳能板状态
+                updateSolarStatus({
+                    voltage: data.solar.voltage || 0,
+                    current: data.solar.current || 0,
+                    power: data.solar.power || 0,
+                    efficiency: data.solar.efficiency || 0,
+                    timestamp: data.timestamp || new Date().toISOString()
+                });
+            }
+            
+            if (data.system) {
+                // 更新系统供电状态
+                updateSystemStatus({
+                    source: data.system.source || '未知',
+                    load_power: data.system.loadPower || 0,
+                    solar_status: data.system.solarStatus || '未知',
+                    grid_status: data.system.gridStatus || '未知',
+                    timestamp: data.timestamp || new Date().toISOString()
+                });
+            }
+            
+            if (data.weather) {
+                // 更新天气状态
+                updateWeatherStatus({
+                    temperature: data.weather.temperature || 0,
+                    humidity: data.weather.humidity || 0,
+                    condition: data.weather.condition || 'unknown',
+                    weather: data.weather.condition || 'unknown',  // 添加weather字段以兼容updateWeatherStatus函数
+                    weather_condition: data.weather.condition || 'unknown',  // 添加weather_condition字段以确保兼容性
+                    windDirection: data.weather.windDirection || '',
+                    windScale: data.weather.windScale || '',
+                    solar_radiation: data.weather.radiation || 0,
+                    isSimulated: data.weather.isSimulated || false,
+                    partiallySimulated: data.weather.partiallySimulated || false,  // 添加部分模拟标记
+                    timestamp: data.timestamp || new Date().toISOString()
+                });
+            }
+            
+            if (data.price) {
+                // 更新电价状态
+                updatePriceStatus({
+                    price: data.price.current || 0,
+                    price_level: data.price.level || 'normal',
+                    next_change_time: data.price.nextChange || new Date().toISOString(),
+                    timestamp: data.timestamp || new Date().toISOString()
+                });
+            }
+            
+            // 更新图表
+            updateAllData(data);
+        });
+        
         socket.on('data-update', (data) => {
             console.log('收到数据更新:', data);
             updateAllData(data);
@@ -1579,7 +1697,7 @@
         });
         
         // 页面加载时获取历史数据
-        window.addEventListener('load', () => {
+        window.addEventListener('load', function() {
             // 添加加载动画
             const loadingElement = document.createElement('div');
             loadingElement.style.position = 'fixed';
@@ -1596,18 +1714,43 @@
             loadingElement.innerHTML = '<div style="color: #00a8ff; font-size: 1.5rem;">加载数据中...</div>';
             document.body.appendChild(loadingElement);
             
+            // 延迟一秒，模拟加载过程
+            setTimeout(function() {
+                // 移除加载动画
+                loadingElement.style.opacity = '0';
+                setTimeout(function() {
+                    document.body.removeChild(loadingElement);
+                }, 500);
+            }, 1000);
+            
+            // 获取湖北省实时电价
+            fetch('/api/hubei-electricity-price')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('获取湖北省实时电价:', data);
+                    updatePriceStatus(data);
+                })
+                .catch(error => {
+                    console.error('获取湖北省实时电价时出错:', error);
+                });
+            
+            // 获取武汉实时天气
+            fetch('/api/wuhan-weather')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('获取武汉实时天气:', data);
+                    updateWeatherStatus(data);
+                })
+                .catch(error => {
+                    console.error('获取武汉实时天气时出错:', error);
+                });
+            
             // 获取所有最新数据
             fetch('/api/all-latest-data')
                 .then(response => response.json())
                 .then(data => {
                     console.log('获取最新数据:', data);
                     updateAllData(data);
-                    
-                    // 移除加载动画
-                    loadingElement.style.opacity = '0';
-                    setTimeout(() => {
-                        document.body.removeChild(loadingElement);
-                    }, 500);
                 })
                 .catch(error => {
                     console.error('获取最新数据时出错:', error);
@@ -1616,12 +1759,6 @@
                         connectionStatus.textContent = '数据加载失败';
                         connectionStatus.className = 'status offline';
                     }
-                    
-                    // 移除加载动画
-                    loadingElement.style.opacity = '0';
-                    setTimeout(() => {
-                        document.body.removeChild(loadingElement);
-                    }, 500);
                 });
             
             // 获取历史数据
@@ -1683,7 +1820,6 @@
                         batteryChart.data.labels = labels;
                         batteryChart.data.datasets[0].data = chartData.map(item => item.voltage);
                         batteryChart.data.datasets[1].data = chartData.map(item => item.capacity);
-                        batteryChart.data.datasets[2].data = chartData.map(item => item.temperature);
                         batteryChart.update();
                     }
                     
@@ -1718,6 +1854,19 @@
             .catch(error => {
                 console.error('获取历史数据时出错:', error);
             });
+            
+            // 定时刷新湖北省实时电价
+            setInterval(() => {
+                fetch('/api/hubei-electricity-price')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('刷新湖北省实时电价:', data);
+                        updatePriceStatus(data);
+                    })
+                    .catch(error => {
+                        console.error('刷新湖北省实时电价时出错:', error);
+                    });
+            }, 60000); // 每分钟刷新一次
         });
         
         // 图表标签切换
@@ -1755,6 +1904,47 @@
                 document.querySelector(`.data-content[data-content="${target}"]`).classList.add('active');
             });
         });
+        
+        // 更新电池图表
+        function updateBatteryChart(data) {
+            if (batteryChart) {
+                // 添加新数据点
+                batteryChart.data.labels.push(formatTime(data.timestamp));
+                
+                // 保持最多显示20个数据点
+                if (batteryChart.data.labels.length > 20) {
+                    batteryChart.data.labels.shift();
+                    batteryChart.data.datasets.forEach(dataset => {
+                        dataset.data.shift();
+                    });
+                }
+                
+                batteryChart.data.datasets[0].data.push(data.voltage);
+                batteryChart.data.datasets[1].data.push(data.capacity);
+                batteryChart.update();
+            }
+        }
+        
+        // 更新太阳能板图表
+        function updateSolarChart(data) {
+            if (solarChart) {
+                // 添加新数据点
+                solarChart.data.labels.push(formatTime(data.timestamp));
+                
+                // 保持最多显示20个数据点
+                if (solarChart.data.labels.length > 20) {
+                    solarChart.data.labels.shift();
+                    solarChart.data.datasets.forEach(dataset => {
+                        dataset.data.shift();
+                    });
+                }
+                
+                solarChart.data.datasets[0].data.push(data.voltage);
+                solarChart.data.datasets[1].data.push(data.current);
+                solarChart.data.datasets[2].data.push(data.power);
+                solarChart.update();
+            }
+        }
     </script>
 </body>
 </html>
