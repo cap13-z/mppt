@@ -1,0 +1,74 @@
+<!-- 设置页面 -->
+<view class="container {{theme}}">
+  <!-- 标题栏 -->
+  <view class="header">
+    <view class="title">系统设置</view>
+  </view>
+  
+  <!-- 设置选项 -->
+  <view class="settings-list">
+    <!-- 主题设置 -->
+    <view class="settings-group">
+      <view class="group-title">界面设置</view>
+      <view class="settings-item">
+        <view class="item-label">暗黑模式</view>
+        <switch checked="{{theme === 'dark'}}" bindchange="switchTheme" color="#00a8ff"></switch>
+      </view>
+    </view>
+    
+    <!-- 通知设置 -->
+    <view class="settings-group">
+      <view class="group-title">通知设置</view>
+      <view class="settings-item">
+        <view class="item-label">告警通知</view>
+        <switch checked="{{notificationSettings.alarm}}" bindchange="switchAlarmNotification" color="#00a8ff"></switch>
+      </view>
+      <view class="settings-item">
+        <view class="item-label">低电量通知</view>
+        <switch checked="{{notificationSettings.lowBattery}}" bindchange="switchLowBatteryNotification" color="#00a8ff"></switch>
+      </view>
+      <view class="settings-item">
+        <view class="item-label">天气变化通知</view>
+        <switch checked="{{notificationSettings.weatherChange}}" bindchange="switchWeatherNotification" color="#00a8ff"></switch>
+      </view>
+    </view>
+    
+    <!-- 数据更新设置 -->
+    <view class="settings-group">
+      <view class="group-title">数据更新</view>
+      <view class="settings-item">
+        <view class="item-label">自动刷新</view>
+        <switch checked="{{dataSettings.autoRefresh}}" bindchange="switchAutoRefresh" color="#00a8ff"></switch>
+      </view>
+      <view class="settings-item" wx:if="{{dataSettings.autoRefresh}}">
+        <view class="item-label">刷新间隔</view>
+        <picker bindchange="updateRefreshInterval" value="{{refreshIntervalIndex}}" range="{{refreshIntervals}}">
+          <view class="picker-value">{{refreshIntervals[refreshIntervalIndex]}}</view>
+        </picker>
+      </view>
+    </view>
+    
+    <!-- 关于信息 -->
+    <view class="settings-group">
+      <view class="group-title">关于</view>
+      <view class="settings-item" bindtap="showAbout">
+        <view class="item-label">关于应用</view>
+        <view class="item-arrow">></view>
+      </view>
+      <view class="settings-item">
+        <view class="item-label">当前版本</view>
+        <view class="item-value">v1.0.0</view>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 退出登录按钮 -->
+  <view class="logout-container" wx:if="{{isLoggedIn}}">
+    <button class="logout-button" bindtap="logout">退出登录</button>
+  </view>
+  
+  <!-- 版权信息 -->
+  <view class="copyright">
+    <text>能源演示系统 © {{currentYear}}</text>
+  </view>
+</view>

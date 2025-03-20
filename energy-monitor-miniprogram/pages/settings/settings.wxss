@@ -1,0 +1,96 @@
+/* 设置页面样式 */
+
+/* 头部标题 */
+.header {
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.1);
+}
+
+.title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+/* 设置列表容器 */
+.settings-list {
+  padding: 20rpx 0;
+}
+
+/* 设置分组 */
+.settings-group {
+  margin-bottom: 30rpx;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 10rpx;
+  overflow: hidden;
+}
+
+.group-title {
+  padding: 20rpx 30rpx;
+  font-size: 28rpx;
+  color: var(--text-secondary);
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* 设置项目 */
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 25rpx 30rpx;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-item:last-child {
+  border-bottom: none;
+}
+
+.item-label {
+  font-size: 28rpx;
+  color: var(--text-primary);
+}
+
+.item-value {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+}
+
+.item-arrow {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+}
+
+/* 选择器样式 */
+.picker-value {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  padding: 5rpx 20rpx;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 6rpx;
+}
+
+/* 退出登录按钮容器 */
+.logout-container {
+  display: flex;
+  justify-content: center;
+  padding: 40rpx 30rpx;
+}
+
+.logout-button {
+  width: 80%;
+  height: 80rpx;
+  line-height: 80rpx;
+  background-color: rgba(255, 59, 48, 0.7);
+  color: #ffffff;
+  font-size: 28rpx;
+  border-radius: 40rpx;
+}
+
+/* 版权信息 */
+.copyright {
+  width: 100%;
+  text-align: center;
+  padding: 40rpx 0;
+  font-size: 24rpx;
+  color: var(--text-secondary);
+}

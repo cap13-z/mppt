@@ -1,0 +1,49 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/trends/trends",
+    "pages/history/history",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#1e3163",
+    "navigationBarTitleText": "能源演示系统",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#060d2c"
+  },
+  "tabBar": {
+    "color": "#8a8a8a",
+    "selectedColor": "#00a8ff",
+    "backgroundColor": "#060d2c",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "images/home.png",
+        "selectedIconPath": "images/home_selected.png"
+      },
+      {
+        "pagePath": "pages/trends/trends",
+        "text": "趋势",
+        "iconPath": "images/trend.png",
+        "selectedIconPath": "images/trend_selected.png"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史",
+        "iconPath": "images/history.png",
+        "selectedIconPath": "images/history_selected.png"
+      },
+      {
+        "pagePath": "pages/settings/settings",
+        "text": "设置",
+        "iconPath": "images/settings.png",
+        "selectedIconPath": "images/settings_selected.png"
+      }
+    ]
+  },
+  "usingComponents": {},
+  "sitemapLocation": "sitemap.json"
+} 
