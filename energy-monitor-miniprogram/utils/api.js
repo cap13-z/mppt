@@ -2,21 +2,66 @@
  * API接口封装
  * 用于与后端服务进行通信
  */
+const config = require('./config');
 
 // API基础地址
-const BASE_URL = 'https://api.energy-demo-system.com';
+const BASE_URL = config.serverConfig.apiUrl;
 
 // 请求超时时间（毫秒）
 const TIMEOUT = 10000;
 
 /**
- * 发送请求的基础方法
- * @param {string} url - 请求路径
- * @param {string} method - 请求方法 (GET, POST, PUT, DELETE)
- * @param {Object} data - 请求数据
- * @returns {Promise} - 请求结果Promise
+ * API工具模块 - 处理网络请求
  */
-const request = (url, method = 'GET', data = {}) => {
+const baseOptions = {
+  timeout: TIMEOUT, // 10秒超时
+  header: {
+    'content-type': 'application/json'
+  }
+};
+
+/**
+ * 发送GET请求
+ * @param {string} url - 请求路径
+ * @param {Object} data - 请求参数
+ * @returns {Promise} - 返回Promise对象
+ */
+function get(url, data = {}) {
+  return request('GET', url, data);
+}
+
+/**
+ * 发送POST请求
+ * @param {string} url - 请求路径
+ * @param {Object} data - 请求参数
+ * @returns {Promise} - 返回Promise对象
+ */
+function post(url, data = {}) {
+  return request('POST', url, data);
+}
+
+/**
+ * 通用请求方法
+ * @param {string} method - 请求方法
+ * @param {string} url - 请求路径
+ * @param {Object} data - 请求参数
+ * @returns {Promise} - 返回Promise对象
+ */
+function request(method, url, data = {}) {
+  // 如果url不是完整的HTTP URL，添加baseUrl
+  if (!url.startsWith('http')) {
+    url = BASE_URL + url;
+  }
+  
+  // 请求配置
+  const options = {
+    ...baseOptions,
+    method: method,
+    url: url,
+    data: data
+  };
+  
+  // 返回Promise对象
   return new Promise((resolve, reject) => {
     // 获取存储的token
     const token = wx.getStorageSync('token') || '';
@@ -27,45 +72,52 @@ const request = (url, method = 'GET', data = {}) => {
       mask: true
     });
     
-    wx.request({
-      url: `${BASE_URL}${url}`,
-      method,
-      data,
-      header: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      timeout: TIMEOUT,
-      success: (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data);
-        } else if (res.statusCode === 401) {
-          // 未授权，清除token并重定向到登录页
-          wx.removeStorageSync('token');
-          wx.showToast({
-            title: '登录状态已过期',
-            icon: 'none',
-            duration: 1500
+    options.header = {
+      ...options.header,
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
+    
+    options.success = res => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        resolve(res.data);
+      } else if (res.statusCode === 401) {
+        // 未授权，清除token并重定向到登录页
+        wx.removeStorageSync('token');
+        wx.showToast({
+          title: '登录状态已过期',
+          icon: 'none',
+          duration: 1500
+        });
+        setTimeout(() => {
+          wx.navigateTo({
+            url: '/pages/login/login'
           });
-          setTimeout(() => {
-            wx.navigateTo({
-              url: '/pages/login/login'
-            });
-          }, 1500);
-          reject(new Error('登录状态已过期'));
-        } else {
-          reject(new Error(res.data.message || '请求失败'));
-        }
-      },
-      fail: (err) => {
-        reject(new Error('网络请求失败'));
-      },
-      complete: () => {
-        wx.hideLoading();
+        }, 1500);
+        reject(new Error('登录状态已过期'));
+      } else {
+        reject({
+          code: res.statusCode,
+          message: res.data.message || '请求失败',
+          data: res.data
+        });
       }
-    });
+    };
+    
+    options.fail = err => {
+      reject({
+        code: -1,
+        message: err.errMsg || '网络请求失败',
+        error: err
+      });
+    };
+    
+    options.complete = () => {
+      wx.hideLoading();
+    };
+    
+    wx.request(options);
   });
-};
+}
 
 // API方法
 
@@ -74,7 +126,7 @@ const request = (url, method = 'GET', data = {}) => {
  * @returns {Promise} - 系统状态数据
  */
 const getSystemStatus = () => {
-  return request('/api/system/status');
+  return get('/api/system/status');
 };
 
 /**
@@ -82,7 +134,7 @@ const getSystemStatus = () => {
  * @returns {Promise} - 电池状态数据
  */
 const getBatteryStatus = () => {
-  return request('/api/battery/status');
+  return get('/api/battery/status');
 };
 
 /**
@@ -90,7 +142,7 @@ const getBatteryStatus = () => {
  * @returns {Promise} - 太阳能发电数据
  */
 const getSolarData = () => {
-  return request('/api/solar/status');
+  return get('/api/solar/status');
 };
 
 /**
@@ -98,7 +150,7 @@ const getSolarData = () => {
  * @returns {Promise} - 天气数据
  */
 const getWeatherData = () => {
-  return request('/api/weather/current');
+  return get('/api/weather/current');
 };
 
 /**
@@ -106,7 +158,7 @@ const getWeatherData = () => {
  * @returns {Promise} - 电网状态数据
  */
 const getGridStatus = () => {
-  return request('/api/grid/status');
+  return get('/api/grid/status');
 };
 
 /**
@@ -114,19 +166,17 @@ const getGridStatus = () => {
  * @returns {Promise} - 能源消耗数据
  */
 const getEnergyConsumption = () => {
-  return request('/api/energy/consumption');
+  return get('/api/energy/consumption');
 };
 
 /**
  * 获取历史数据
- * @param {string} type - 数据类型
- * @param {string} startDate - 开始日期
- * @param {string} endDate - 结束日期
- * @returns {Promise} - 历史数据
+ * @param {number} days - 天数
+ * @returns {Promise} - 返回Promise对象
  */
-const getHistoryData = (type, startDate, endDate) => {
-  return request(`/api/history/${type}?startDate=${startDate}&endDate=${endDate}`);
-};
+function getHistoryData(days = 7) {
+  return get(config.serverConfig.apiPaths.history, { days });
+}
 
 /**
  * 获取趋势数据
@@ -135,7 +185,7 @@ const getHistoryData = (type, startDate, endDate) => {
  * @returns {Promise} - 趋势数据
  */
 const getTrendData = (type, period) => {
-  return request(`/api/trends/${type}?period=${period}`);
+  return get(`/api/trends/${type}?period=${period}`);
 };
 
 /**
@@ -145,7 +195,7 @@ const getTrendData = (type, period) => {
  * @returns {Promise} - 登录结果
  */
 const login = (username, password) => {
-  return request('/api/auth/login', 'POST', { username, password });
+  return post('/api/auth/login', { username, password });
 };
 
 /**
@@ -154,7 +204,7 @@ const login = (username, password) => {
  * @returns {Promise} - 注册结果
  */
 const register = (userData) => {
-  return request('/api/auth/register', 'POST', userData);
+  return post('/api/auth/register', userData);
 };
 
 /**
@@ -163,7 +213,7 @@ const register = (userData) => {
  * @returns {Promise} - 修改结果
  */
 const updateUserInfo = (userData) => {
-  return request('/api/user/update', 'PUT', userData);
+  return post('/api/user/update', userData);
 };
 
 /**
@@ -174,7 +224,7 @@ const updateUserInfo = (userData) => {
  * @returns {Promise} - 控制结果
  */
 const controlDevice = (deviceId, action, params) => {
-  return request(`/api/device/${deviceId}/control`, 'POST', { action, ...params });
+  return post(`/api/device/${deviceId}/control`, { action, ...params });
 };
 
 /**
@@ -206,8 +256,47 @@ const getAllHomePageData = async () => {
   }
 };
 
+/**
+ * 获取设备信息
+ * @returns {Promise} - 返回Promise对象
+ */
+function getDeviceInfo() {
+  return get(config.serverConfig.apiPaths.deviceInfo);
+}
+
+/**
+ * 获取主页数据
+ * @returns {Promise} - 返回Promise对象
+ */
+function getHomePage() {
+  return {
+    batteryStatus: {
+      voltage: 12.6,
+      capacity: 100,
+      temperature: 25,
+      current: 0.5,
+      status: '充电中'
+    },
+    solarPower: {
+      power: 150,
+      voltage: 18.5,
+      current: 8.1,
+      todayEnergy: 1.2,
+      temperature: 38
+    },
+    weather: {
+      temperature: 28,
+      humidity: '65%',
+      condition: '晴',
+      icon: '../../images/weather/sunny.png'
+    }
+  };
+}
+
+// 导出API
 module.exports = {
-  request,
+  get,
+  post,
   getSystemStatus,
   getBatteryStatus,
   getSolarData,
@@ -220,5 +309,7 @@ module.exports = {
   register,
   updateUserInfo,
   controlDevice,
-  getAllHomePageData
+  getAllHomePageData,
+  getDeviceInfo,
+  getHomePage
 }; 

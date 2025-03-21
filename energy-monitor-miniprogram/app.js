@@ -1,114 +1,132 @@
-// app.js
-// 微信小程序全局JS文件，负责初始化全局数据和建立WebSocket连接
+/**
+ * 能源监控小程序 - 入口文件
+ */
+const config = require('./utils/config');
+const websocket = require('./utils/websocket');
 
 App({
-  // 全局数据，可以在整个应用程序中访问
+  // 全局数据
   globalData: {
-    serverUrl: 'https://your-server-url.com', // 服务器URL，需要替换为实际地址
-    wsUrl: 'wss://your-server-url.com',       // WebSocket URL，需要替换为实际地址
-    socketConnected: false,                   // WebSocket连接状态
-    latestData: {                             // 最新的设备数据
-      battery: null,                          // 电池数据
-      solar: null,                            // 太阳能数据
-      weather: null,                          // 天气数据
-      price: null,                            // 电价数据
-      system: null                            // 系统状态数据
-    },
-    theme: 'dark'                             // 应用主题，默认为暗色主题
+    theme: config.defaultSettings.theme, // 默认主题
+    userInfo: null,                     // 用户信息
+    hasLogin: false,                    // 是否已登录
+    socketConnected: false,             // WebSocket连接状态
+    batteryData: null,                  // 电池数据
+    solarData: null,                    // 太阳能数据
+    weatherData: null,                  // 天气数据
+    gridData: null,                     // 电网数据
+    lastUpdateTime: null                // 最后更新时间
   },
-
-  // 小程序启动时执行
+  
+  /**
+   * 小程序启动时执行
+   */
   onLaunch: function() {
     console.log('小程序启动');
-    // 初始化WebSocket连接
-    this.initWebSocket();
-    // 获取用户偏好设置
-    this.loadUserPreferences();
+    
+    // 从本地存储加载用户设置
+    this.loadUserSettings();
+    
+    // 连接WebSocket
+    this.connectWebSocket();
   },
-
-  // 初始化WebSocket连接
-  initWebSocket: function() {
-    const ws = require('./utils/websocket');
-    // 连接到WebSocket服务器
-    ws.connect(this.globalData.wsUrl);
+  
+  /**
+   * WebSocket连接
+   */
+  connectWebSocket: function() {
+    console.log('正在连接WebSocket...');
     
-    // 连接建立时的回调
-    ws.onConnect(() => {
-      console.log('WebSocket连接已建立');
-      this.globalData.socketConnected = true;
-    });
+    // 连接WebSocket
+    websocket.connect();
     
-    // 接收消息时的回调
-    ws.onMessage((data) => {
-      console.log('收到WebSocket消息:', data);
-      this.handleSocketMessage(data);
-    });
+    // 注册全局数据更新处理器
+    websocket.registerHandler(this.handleWebSocketMessage);
     
-    // 连接断开时的回调
-    ws.onDisconnect(() => {
-      console.log('WebSocket连接已断开');
-      this.globalData.socketConnected = false;
-      // 尝试重新连接
-      setTimeout(() => {
-        this.initWebSocket();
-      }, 5000); // 5秒后重连
-    });
+    // 设置连接状态
+    this.globalData.socketConnected = true;
   },
-
-  // 处理WebSocket消息
-  handleSocketMessage: function(message) {
-    if (message.type === 'device-data') {
-      // 处理设备数据
-      this.updateLatestData(message.data);
-    } else if (message.type === 'data-update') {
-      // 处理数据更新
-      this.updateLatestData(message.data);
+  
+  /**
+   * 处理WebSocket消息
+   * @param {Object} data - 收到的数据
+   */
+  handleWebSocketMessage: function(data) {
+    console.log('App收到WebSocket消息:', data);
+    
+    // 更新全局数据
+    if (data.battery) {
+      this.globalData.batteryData = data.battery;
     }
-  },
-
-  // 更新最新数据
-  updateLatestData: function(data) {
-    // 更新对应类型的数据
-    if (data.battery) this.globalData.latestData.battery = data.battery;
-    if (data.solar) this.globalData.latestData.solar = data.solar;
-    if (data.weather) this.globalData.latestData.weather = data.weather;
-    if (data.price) this.globalData.latestData.price = data.price;
-    if (data.system) this.globalData.latestData.system = data.system;
     
-    // 发送数据更新事件，通知页面刷新数据
-    this.triggerDataUpdateEvent();
+    if (data.solar) {
+      this.globalData.solarData = data.solar;
+    }
+    
+    if (data.weather) {
+      this.globalData.weatherData = data.weather;
+    }
+    
+    if (data.grid) {
+      this.globalData.gridData = data.grid;
+    }
+    
+    // 更新最后更新时间
+    this.globalData.lastUpdateTime = new Date();
   },
-
-  // 触发数据更新事件
-  triggerDataUpdateEvent: function() {
-    // 使用自定义事件通知页面数据已更新
-    const pages = getCurrentPages();
-    if (pages.length > 0) {
-      const currentPage = pages[pages.length - 1];
-      if (currentPage && currentPage.onDataUpdate) {
-        currentPage.onDataUpdate(this.globalData.latestData);
+  
+  /**
+   * 从本地存储加载用户设置
+   */
+  loadUserSettings: function() {
+    try {
+      // 加载主题设置
+      const theme = wx.getStorageSync('theme');
+      if (theme) {
+        this.globalData.theme = theme;
       }
+      
+      // 加载用户信息
+      const userInfo = wx.getStorageSync('userInfo');
+      if (userInfo) {
+        this.globalData.userInfo = userInfo;
+        this.globalData.hasLogin = true;
+      }
+    } catch (error) {
+      console.error('加载用户设置失败:', error);
     }
   },
-
-  // 加载用户偏好设置
-  loadUserPreferences: function() {
-    try {
-      // 尝试从本地存储读取用户偏好设置
-      const theme = wx.getStorageSync('theme') || 'dark';
-      this.globalData.theme = theme;
-    } catch (e) {
-      console.error('读取用户偏好设置失败:', e);
+  
+  /**
+   * 设置主题
+   * @param {string} theme - 主题名称
+   */
+  setTheme: function(theme) {
+    this.globalData.theme = theme;
+    wx.setStorageSync('theme', theme);
+  },
+  
+  /**
+   * 小程序显示时执行
+   */
+  onShow: function() {
+    // 如果WebSocket连接已断开，重新连接
+    if (!this.globalData.socketConnected) {
+      this.connectWebSocket();
     }
   },
-
-  // 保存用户偏好设置
-  saveUserPreferences: function() {
-    try {
-      // 保存主题设置到本地存储
-      wx.setStorageSync('theme', this.globalData.theme);
-    } catch (e) {
-      console.error('保存用户偏好设置失败:', e);
-    }
+  
+  /**
+   * 小程序隐藏时执行
+   */
+  onHide: function() {
+    // 小程序隐藏时，不主动断开WebSocket连接，保持接收数据
+  },
+  
+  /**
+   * 发生错误时执行
+   */
+  onError: function(error) {
+    console.error('小程序发生错误:', error);
   }
-}) 
+}); 

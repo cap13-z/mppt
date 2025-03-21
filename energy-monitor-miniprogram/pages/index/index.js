@@ -14,6 +14,10 @@ const util = require('../../utils/util.js');
 const api = require('../../utils/api.js');
 const mock = require('../../utils/mock.js');
 
+// 引入WebSocket相关模块
+const websocket = require('../../utils/websocket');
+const config = require('../../utils/config');
+
 Page({
   /**
    * 页面的初始数据
@@ -68,17 +72,58 @@ Page({
     
     // 页面状态
     refreshInterval: null,
-    lastBatteryCapacity: 0 // 上次电池容量，用于计算趋势
+    lastBatteryCapacity: 0, // 上次电池容量，用于计算趋势
+    
+    // 系统状态数据
+    batteryStatus: {
+      voltage: 0,
+      capacity: 0,
+      temperature: 0,
+      current: 0,
+      status: '正在检测...'
+    },
+    solarPower: {
+      power: 0,
+      voltage: 0,
+      current: 0,
+      todayEnergy: 0,
+      temperature: 0
+    },
+    weather: {
+      temperature: 0,
+      humidity: '0%',
+      condition: '晴',
+      icon: '../../images/weather/sunny.png'
+    },
+    // 界面状态
+    connected: false,
+    loading: true,
+    lastUpdate: '正在连接...',
+    theme: config.defaultSettings.theme
   },
   
   /**
    * 生命周期函数--监听页面加载
    */
   onLoad: function (options) {
-    // 从全局获取主题设置
-    this.setData({
-      theme: app.globalData.theme
-    });
+    console.log('首页加载');
+    // 从本地存储获取主题设置
+    if (app.globalData && app.globalData.theme) {
+      this.setData({
+        theme: app.globalData.theme
+      });
+    } else {
+      // 从存储中读取主题设置
+      const savedTheme = wx.getStorageSync('theme');
+      if (savedTheme) {
+        this.setData({
+          theme: savedTheme
+        });
+        if (app.globalData) {
+          app.globalData.theme = savedTheme;
+        }
+      }
+    }
     
     // 加载页面时立即获取数据
     this.loadAllData();
@@ -89,19 +134,23 @@ Page({
       const refreshTime = wx.getStorageSync('refreshInterval') || 60; // 默认60秒
       this.startAutoRefresh(refreshTime);
     }
+
+    // 获取mock-data组件实例
+    this.mockData = this.selectComponent('#mockData');
+    this.updatePageData();
+
+    // 初始化WebSocket连接
+    this.initWebSocket();
   },
   
   /**
    * 生命周期函数--监听页面显示
    */
   onShow: function () {
-    // 更新WebSocket连接状态
-    this.setData({
-      socketConnected: app.globalData.socketConnected
-    });
-    
-    // 页面显示时，重新加载数据
-    this.loadAllData();
+    // 页面显示时，确保WebSocket连接
+    if (!this.data.connected) {
+      this.initWebSocket();
+    }
   },
   
   /**
@@ -118,6 +167,8 @@ Page({
   onUnload: function () {
     // 页面卸载时，停止自动刷新
     this.stopAutoRefresh();
+    // 移除消息处理器
+    websocket.removeHandler(this.handleWebSocketMessage);
   },
   
   /**
@@ -181,67 +232,165 @@ Page({
    * 加载模拟数据（实际开发中应替换为API调用）
    */
   loadMockData: function () {
-    // 获取模拟数据
-    const mockData = mock.getHomePageData();
-    
-    // 计算电池趋势
-    let batteryTrend = '稳定';
-    if (mockData.batteryCapacity > this.data.lastBatteryCapacity) {
-      batteryTrend = '上升';
-    } else if (mockData.batteryCapacity < this.data.lastBatteryCapacity) {
-      batteryTrend = '下降';
+    // 使用mock模块获取模拟数据
+    try {
+      const mockData = mock.getHomePageData();
+      
+      // 计算电池趋势
+      let batteryTrend = '稳定';
+      if (mockData.batteryCapacity > this.data.lastBatteryCapacity) {
+        batteryTrend = '上升';
+      } else if (mockData.batteryCapacity < this.data.lastBatteryCapacity) {
+        batteryTrend = '下降';
+      }
+      
+      // 更新页面数据
+      this.setData({
+        // 系统状态
+        systemStatus: mockData.systemStatus,
+        
+        // 电池状态
+        batteryCapacity: mockData.batteryCapacity,
+        batteryStatus: mockData.batteryStatus,
+        batteryCurrent: mockData.batteryCurrent,
+        batteryTemperature: mockData.batteryTemperature,
+        batteryTrend: batteryTrend,
+        
+        // 太阳能数据
+        solarPower: mockData.solarPower,
+        dailySolarGeneration: mockData.dailySolarGeneration,
+        solarEfficiency: mockData.solarEfficiency,
+        panelTemperature: mockData.panelTemperature,
+        
+        // 天气信息
+        weatherType: mockData.weatherType,
+        temperature: mockData.temperature,
+        windSpeed: mockData.windSpeed,
+        humidity: mockData.humidity,
+        solarRadiation: mockData.solarRadiation,
+        
+        // 电网状态
+        gridConnected: mockData.gridConnected,
+        electricityPrice: mockData.electricityPrice,
+        gridVoltage: mockData.gridVoltage,
+        gridLoad: mockData.gridLoad,
+        
+        // 能源消耗
+        energyConsumption: mockData.energyConsumption,
+        peakPower: mockData.peakPower,
+        comparedToYesterday: mockData.comparedToYesterday,
+        estimatedCost: mockData.estimatedCost
+      });
+    } catch (error) {
+      console.error('加载模拟数据失败:', error);
+      this.setData({
+        hasError: true,
+        errorMessage: '加载数据失败，请重试'
+      });
     }
+  },
+  
+  /**
+   * 初始化WebSocket连接
+   */
+  initWebSocket: function() {
+    console.log('初始化WebSocket连接');
     
-    // 更新页面数据
-    this.setData({
-      // 系统状态
-      systemStatus: mockData.systemStatus,
+    // 连接WebSocket
+    websocket.connect();
+    
+    // 注册消息处理器
+    this.handleWebSocketMessage = (data) => {
+      console.log('首页收到WebSocket消息:', data);
       
-      // 电池状态
-      batteryCapacity: mockData.batteryCapacity,
-      batteryStatus: mockData.batteryStatus,
-      batteryCurrent: mockData.batteryCurrent,
-      batteryTemperature: mockData.batteryTemperature,
-      batteryTrend: batteryTrend,
+      // 处理消息更新UI
+      this.processWebSocketData(data);
       
-      // 太阳能数据
-      solarPower: mockData.solarPower,
-      dailySolarGeneration: mockData.dailySolarGeneration,
-      solarEfficiency: mockData.solarEfficiency,
-      panelTemperature: mockData.panelTemperature,
+      // 更新连接状态
+      this.setData({
+        connected: true,
+        loading: false,
+        lastUpdate: util.formatTime(new Date())
+      });
+    };
+    
+    // 注册消息处理器
+    websocket.registerHandler(this.handleWebSocketMessage);
+  },
+  
+  /**
+   * 处理WebSocket数据
+   */
+  processWebSocketData: function(data) {
+    // 更新页面上的所有数据
+    if (data) {
+      // 更新电池数据
+      if (data.battery) {
+        this.setData({
+          batteryCapacity: data.battery.capacity || 0,
+          batteryStatus: data.battery.status || '未知',
+          batteryCurrent: data.battery.current || 0,
+          batteryTemperature: data.battery.temperature || 0
+        });
+      }
       
-      // 天气信息
-      weatherType: mockData.weatherType,
-      temperature: mockData.temperature,
-      windSpeed: mockData.windSpeed,
-      humidity: mockData.humidity,
-      solarRadiation: mockData.solarRadiation,
+      // 更新太阳能数据
+      if (data.solar) {
+        this.setData({
+          solarPower: data.solar.power || 0,
+          dailySolarGeneration: data.solar.generation || 0,
+          solarEfficiency: data.solar.efficiency || 0,
+          panelTemperature: data.solar.temperature || 0
+        });
+      }
       
-      // 电网状态
-      gridConnected: mockData.gridConnected,
-      electricityPrice: mockData.electricityPrice,
-      gridVoltage: mockData.gridVoltage,
-      gridLoad: mockData.gridLoad,
+      // 更新天气数据
+      if (data.weather) {
+        this.setData({
+          weatherType: data.weather.type || '晴',
+          temperature: data.weather.temperature || 0,
+          windSpeed: data.weather.windSpeed || 0,
+          humidity: data.weather.humidity || 0,
+          solarRadiation: data.weather.solarRadiation || 0
+        });
+      }
       
-      // 能源消耗
-      energyConsumption: mockData.energyConsumption,
-      peakPower: mockData.peakPower,
-      comparedToYesterday: mockData.comparedToYesterday,
-      estimatedCost: mockData.estimatedCost
-    });
+      // 更新电网数据
+      if (data.grid) {
+        this.setData({
+          gridConnected: data.grid.connected !== undefined ? data.grid.connected : true,
+          electricityPrice: data.grid.price || 0,
+          gridVoltage: data.grid.voltage || 220,
+          gridLoad: data.grid.load || 0
+        });
+      }
+      
+      // 更新能源消耗数据
+      if (data.energy) {
+        this.setData({
+          energyConsumption: data.energy.consumption || 0,
+          peakPower: data.energy.peakPower || 0,
+          comparedToYesterday: data.energy.comparedToYesterday || 0,
+          estimatedCost: data.energy.estimatedCost || 0
+        });
+      }
+    }
   },
   
   /**
    * 手动刷新数据
    */
   refreshData: function () {
-    wx.showToast({
-      title: '刷新中...',
-      icon: 'loading',
-      duration: 1000
-    });
+    this.setData({ loading: true });
     
-    this.loadAllData();
+    // 发送刷新请求
+    websocket.send({
+      type: 'refresh',
+      timestamp: new Date().toISOString()
+    }).catch(error => {
+      console.error('发送刷新请求失败:', error);
+      this.setData({ loading: false });
+    });
   },
   
   /**
@@ -263,58 +412,23 @@ Page({
     wx.stopPullDownRefresh();
   },
   
-  // 处理数据更新事件
-  onDataUpdate: function(data) {
-    console.log('接收到数据更新:', data);
-    // 调用更新所有数据的方法
-    this.updateAllData(data);
-  },
-  
-  // 重试加载
+  /**
+   * 重试加载
+   */
   retryLoad: function() {
     this.loadAllData();
   },
   
-  // 更新所有数据
-  updateAllData: function(data) {
-    // 更新系统状态数据
-    if (data.system) {
-      const systemData = systemService.updateSystemData(data.system);
-      this.setData({
-        systemData: systemData
-      });
-    }
-    
-    // 更新电池数据
-    if (data.battery) {
-      const batteryData = batteryService.updateBatteryData(data.battery);
-      this.setData({
-        batteryData: batteryData
-      });
-    }
-    
-    // 更新太阳能数据
-    if (data.solar) {
-      const solarData = solarService.updateSolarData(data.solar);
-      this.setData({
-        solarData: solarData
-      });
-    }
-    
-    // 更新天气数据
-    if (data.weather) {
-      const weatherData = weatherService.updateWeatherData(data.weather);
-      this.setData({
-        weatherData: weatherData
-      });
-    }
-    
-    // 更新电价数据
-    if (data.price) {
-      const priceData = priceService.updatePriceData(data.price);
-      this.setData({
-        priceData: priceData
-      });
+  /**
+   * 更新页面数据
+   */
+  updatePageData: function() {
+    try {
+      // 获取最新的模拟数据
+      const mockData = mock.getHomePageData();
+      this.setData(mockData);
+    } catch (error) {
+      console.error('更新页面数据失败:', error);
     }
   }
 }); 
