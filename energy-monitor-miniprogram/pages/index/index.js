@@ -135,10 +135,6 @@ Page({
       this.startAutoRefresh(refreshTime);
     }
 
-    // 获取mock-data组件实例
-    this.mockData = this.selectComponent('#mockData');
-    this.updatePageData();
-
     // 初始化WebSocket连接
     this.initWebSocket();
   },
@@ -279,13 +275,26 @@ Page({
         energyConsumption: mockData.energyConsumption,
         peakPower: mockData.peakPower,
         comparedToYesterday: mockData.comparedToYesterday,
-        estimatedCost: mockData.estimatedCost
+        estimatedCost: mockData.estimatedCost,
+        
+        // 新增 - 直接存储完整的数据对象
+        batteryData: mockData.battery,
+        solarData: mockData.solar,
+        powerStatus: mockData.powerStatus,
+        weatherData: mockData.weather,
+        priceData: mockData.price,
+        
+        // 更新UI状态
+        connected: true,
+        loading: false,
+        lastUpdate: util.formatTime(new Date())
       });
     } catch (error) {
       console.error('加载模拟数据失败:', error);
       this.setData({
         hasError: true,
-        errorMessage: '加载数据失败，请重试'
+        errorMessage: '加载数据失败，请重试',
+        loading: false
       });
     }
   },
@@ -319,61 +328,95 @@ Page({
   },
   
   /**
-   * 处理WebSocket数据
+   * 处理WebSocket数据 - 适配新的数据格式
    */
   processWebSocketData: function(data) {
-    // 更新页面上的所有数据
-    if (data) {
-      // 更新电池数据
-      if (data.battery) {
-        this.setData({
-          batteryCapacity: data.battery.capacity || 0,
-          batteryStatus: data.battery.status || '未知',
-          batteryCurrent: data.battery.current || 0,
-          batteryTemperature: data.battery.temperature || 0
-        });
+    try {
+      // 兼容处理，确保各个数据对象存在
+      const battery = data.battery || {};
+      const solar = data.solar || {};
+      const weather = data.weather || {};
+      const powerStatus = data.powerStatus || {};
+      const price = data.price || {};
+      
+      // 计算电池趋势
+      let batteryTrend = '稳定';
+      if (battery.capacity > this.data.lastBatteryCapacity) {
+        batteryTrend = '上升';
+      } else if (battery.capacity < this.data.lastBatteryCapacity) {
+        batteryTrend = '下降';
       }
       
-      // 更新太阳能数据
-      if (data.solar) {
-        this.setData({
-          solarPower: data.solar.power || 0,
-          dailySolarGeneration: data.solar.generation || 0,
-          solarEfficiency: data.solar.efficiency || 0,
-          panelTemperature: data.solar.temperature || 0
-        });
+      const weatherCondition = weather.weather_condition || '晴朗';
+      
+      // 根据天气条件确定图标
+      let weatherIcon = '../../images/weather/sunny.png';
+      if (weatherCondition.includes('多云')) {
+        weatherIcon = '../../images/weather/cloudy.png';
+      } else if (weatherCondition.includes('阴')) {
+        weatherIcon = '../../images/weather/overcast.png';
+      } else if (weatherCondition.includes('小雨')) {
+        weatherIcon = '../../images/weather/light_rain.png';
+      } else if (weatherCondition.includes('中雨')) {
+        weatherIcon = '../../images/weather/moderate_rain.png';
+      } else if (weatherCondition.includes('大雨')) {
+        weatherIcon = '../../images/weather/heavy_rain.png';
+      } else if (weatherCondition.includes('雷')) {
+        weatherIcon = '../../images/weather/thunder.png';
       }
       
-      // 更新天气数据
-      if (data.weather) {
-        this.setData({
-          weatherType: data.weather.type || '晴',
-          temperature: data.weather.temperature || 0,
-          windSpeed: data.weather.windSpeed || 0,
-          humidity: data.weather.humidity || 0,
-          solarRadiation: data.weather.solarRadiation || 0
-        });
-      }
-      
-      // 更新电网数据
-      if (data.grid) {
-        this.setData({
-          gridConnected: data.grid.connected !== undefined ? data.grid.connected : true,
-          electricityPrice: data.grid.price || 0,
-          gridVoltage: data.grid.voltage || 220,
-          gridLoad: data.grid.load || 0
-        });
-      }
-      
-      // 更新能源消耗数据
-      if (data.energy) {
-        this.setData({
-          energyConsumption: data.energy.consumption || 0,
-          peakPower: data.energy.peakPower || 0,
-          comparedToYesterday: data.energy.comparedToYesterday || 0,
-          estimatedCost: data.energy.estimatedCost || 0
-        });
-      }
+      // 更新页面数据 - 同时兼容旧格式和新格式
+      this.setData({
+        // 存储完整的数据对象
+        batteryData: battery,
+        solarData: solar,
+        weatherData: weather,
+        powerStatus: powerStatus,
+        priceData: price,
+        
+        // 电池状态
+        batteryCapacity: battery.capacity || 0,
+        batteryStatus: battery.status || '未知',
+        batteryCurrent: battery.current || 0,
+        batteryTemperature: battery.temperature || 0,
+        batteryVoltage: battery.voltage || 0,
+        batteryTrend: batteryTrend,
+        
+        // 太阳能数据
+        solarPower: solar.power || 0,
+        solarVoltage: solar.voltage || 0,
+        solarCurrent: solar.current || 0,
+        solarEfficiency: solar.efficiency || 0,
+        panelTemperature: solar.temperature || 0,
+        
+        // 天气信息
+        weatherType: weatherCondition,
+        temperature: weather.temperature || 0,
+        humidity: weather.humidity || 0,
+        solarRadiation: weather.solar_radiation || 0,
+        weather: {
+          temperature: weather.temperature || 0,
+          humidity: `${weather.humidity || 0}%`,
+          condition: weatherCondition,
+          icon: weatherIcon
+        },
+        
+        // 电网状态
+        gridConnected: powerStatus.grid_status === '正常',
+        electricityPrice: price.price || 0,
+        gridVoltage: powerStatus.grid_voltage || 220,
+        gridLoad: powerStatus.load_power || 0,
+        
+        // 系统状态
+        systemStatus: powerStatus.system_status || '正常运行中',
+        
+        // 更新UI状态
+        connected: true,
+        loading: false,
+        lastUpdate: util.formatTime(new Date())
+      });
+    } catch (error) {
+      console.error('处理WebSocket数据失败:', error);
     }
   },
   

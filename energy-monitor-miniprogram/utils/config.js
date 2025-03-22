@@ -35,6 +35,7 @@ const themeConfig = {
 // 应用设置默认值
 const defaultSettings = {
   theme: 'light',
+  useMockData: true,  // 是否使用模拟数据（当WebSocket连接失败时）
   notifications: {
     alarm: true,
     lowBattery: true,
@@ -56,10 +57,24 @@ const historyConfig = {
   }
 };
 
+// 天气图标映射
+const weatherIcons = {
+  '晴朗': 'sunny.png',
+  '晴': 'sunny.png',
+  '多云': 'cloudy.png',
+  '阴天': 'overcast.png',
+  '阴': 'overcast.png',
+  '小雨': 'light_rain.png',
+  '中雨': 'moderate_rain.png',
+  '大雨': 'heavy_rain.png',
+  '雷雨': 'thunder.png'
+};
+
 module.exports = {
   serverConfig,
   themeConfig,
   defaultSettings,
   historyConfig,
+  weatherIcons,
   appVersion: '1.0.0'
 }; 

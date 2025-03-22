@@ -2,6 +2,7 @@
  * WebSocket连接管理器
  */
 const config = require('./config');
+const mock = require('./mock');
 
 // 连接状态
 let socketState = {
@@ -12,7 +13,8 @@ let socketState = {
   reconnectCount: 0,
   maxReconnectAttempts: 5,
   reconnectInterval: 3000, // 毫秒
-  messageHandlers: []
+  messageHandlers: [],
+  mockDataTimer: null
 };
 
 /**
@@ -61,6 +63,20 @@ function handleSocketOpen() {
   socketState.connected = true;
   socketState.connecting = false;
   socketState.reconnectCount = 0;
+  
+  // 连接建立后，立即发送请求获取最新数据
+  sendSocketMessage({
+    type: 'subscribe',
+    topics: ['data-update'],
+    client: 'wxapp'
+  }).catch(error => {
+    console.error('发送订阅请求失败:', error);
+  });
+  
+  // 如果没有实时数据，启动模拟数据定时器
+  if (config.defaultSettings.useMockData) {
+    startMockDataTimer();
+  }
 }
 
 /**
@@ -90,6 +106,11 @@ function attemptReconnect() {
   // 如果已达到最大重连次数，不再尝试
   if (socketState.reconnectCount >= socketState.maxReconnectAttempts) {
     console.error('WebSocket连接失败: 已超过最大重连次数');
+    
+    // 如果配置允许使用模拟数据，则启动模拟数据定时器
+    if (config.defaultSettings.useMockData) {
+      startMockDataTimer();
+    }
     return;
   }
 
@@ -109,15 +130,17 @@ function attemptReconnect() {
  */
 function handleSocketMessage(result) {
   try {
-    const data = JSON.parse(result.data);
-    console.log('收到WebSocket消息:', data);
+    const message = JSON.parse(result.data);
+    console.log('收到WebSocket消息:', message);
     
-    // 调用所有注册的消息处理器
-    socketState.messageHandlers.forEach(handler => {
-      if (typeof handler === 'function') {
-        handler(data);
-      }
-    });
+    // 处理data-update类型的消息
+    if (message.type === 'data-update') {
+      // 调用所有注册的消息处理器，传入数据
+      notifyAllHandlers(message.data);
+    } else {
+      // 处理其他类型的消息
+      console.log('收到其他类型消息:', message.type);
+    }
   } catch (error) {
     console.error('处理WebSocket消息失败:', error);
   }
@@ -174,6 +197,12 @@ function closeSocket() {
     socketState.reconnectTimer = null;
   }
   
+  // 清除模拟数据定时器
+  if (socketState.mockDataTimer) {
+    clearInterval(socketState.mockDataTimer);
+    socketState.mockDataTimer = null;
+  }
+  
   // 重置状态
   socketState.connected = false;
   socketState.connecting = false;
@@ -198,6 +227,41 @@ function removeMessageHandler(handler) {
   if (index !== -1) {
     socketState.messageHandlers.splice(index, 1);
   }
+}
+
+/**
+ * 通知所有已注册的消息处理器
+ * @param {Object} data - 消息数据
+ */
+function notifyAllHandlers(data) {
+  socketState.messageHandlers.forEach(handler => {
+    if (typeof handler === 'function') {
+      handler(data);
+    }
+  });
+}
+
+/**
+ * 启动模拟数据定时器
+ * 当WebSocket连接失败时使用
+ */
+function startMockDataTimer() {
+  // 如果已有定时器，先清除
+  if (socketState.mockDataTimer) {
+    clearInterval(socketState.mockDataTimer);
+  }
+  
+  console.log('启动模拟数据定时器');
+  
+  // 立即发送一次模拟数据
+  const mockData = mock.getRealTimeData();
+  notifyAllHandlers(mockData);
+  
+  // 每10秒发送一次模拟数据
+  socketState.mockDataTimer = setInterval(() => {
+    const mockData = mock.getRealTimeData();
+    notifyAllHandlers(mockData);
+  }, 10000);  // 10秒更新一次，与前端保持一致
 }
 
 // 导出API
