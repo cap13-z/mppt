@@ -98,8 +98,7 @@ Page({
     // 界面状态
     connected: false,
     loading: true,
-    lastUpdate: '正在连接...',
-    theme: config.defaultSettings.theme
+    lastUpdate: '正在连接...'
   },
   
   /**
@@ -332,6 +331,20 @@ Page({
    */
   processWebSocketData: function(data) {
     try {
+      console.log('处理接收到的数据', Object.keys(data));
+      
+      if (!data) {
+        console.error('收到空数据');
+        return;
+      }
+      
+      // 获取天气条件 - 支持多种字段名
+      const weatherData = data.weather || {};
+      const weatherCondition = weatherData.condition || weatherData.weather || weatherData.weather_condition || '未知';
+      
+      // 根据天气条件确定图标
+      const weatherIconFile = this.getWeatherIcon(weatherCondition);
+      
       // 兼容处理，确保各个数据对象存在
       const battery = data.battery || {};
       const solar = data.solar || {};
@@ -346,8 +359,6 @@ Page({
       } else if (battery.capacity < this.data.lastBatteryCapacity) {
         batteryTrend = '下降';
       }
-      
-      const weatherCondition = weather.weather_condition || '晴朗';
       
       // 根据天气条件确定图标
       let weatherIcon = '../../images/weather/sunny.png';
@@ -473,5 +484,42 @@ Page({
     } catch (error) {
       console.error('更新页面数据失败:', error);
     }
+  },
+  
+  /**
+   * 根据天气条件获取天气图标
+   */
+  getWeatherIcon: function(condition) {
+    if (!condition) return '../../images/weather/sunny.png';
+    
+    // 转小写并去除空格以便匹配
+    const conditionLower = condition.toLowerCase().trim();
+    
+    if (conditionLower.includes('晴')) {
+      return '../../images/weather/sunny.png';
+    } else if (conditionLower.includes('多云')) {
+      return '../../images/weather/cloudy.png';
+    } else if (conditionLower.includes('阴')) {
+      return '../../images/weather/overcast.png';
+    } else if (conditionLower.includes('雷') && conditionLower.includes('雨')) {
+      return '../../images/weather/thunder.png';
+    } else if (conditionLower.includes('雨')) {
+      if (conditionLower.includes('大') || conditionLower.includes('暴')) {
+        return '../../images/weather/heavy_rain.png';
+      } else {
+        return '../../images/weather/light_rain.png';
+      }
+    } else if (conditionLower.includes('雪')) {
+      return '../../images/weather/snow.png';
+    } else if (conditionLower.includes('雾')) {
+      return '../../images/weather/fog.png';
+    } else if (conditionLower.includes('霾') || conditionLower.includes('haze')) {
+      return '../../images/weather/haze.png';
+    } else if (conditionLower.includes('尘') || conditionLower.includes('沙') || conditionLower.includes('dust')) {
+      return '../../images/weather/dust.png';
+    }
+    
+    // 默认图标
+    return '../../images/weather/sunny.png';
   }
 }); 

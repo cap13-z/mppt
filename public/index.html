@@ -755,18 +755,6 @@
                         <i class="fas fa-temperature-high"></i>
                         <div id="weather-temperature">0°C</div>
                     </div>
-                    <div class="weather-detail-item">
-                        <i class="fas fa-tint"></i>
-                        <div id="weather-humidity">0%</div>
-                    </div>
-                    <div class="weather-detail-item">
-                        <i class="fas fa-wind"></i>
-                        <div id="weather-wind">无风向数据</div>
-                    </div>
-                    <div class="weather-detail-item">
-                        <i class="fas fa-sun"></i>
-                        <div id="solar-radiation">0 W/m²</div>
-                    </div>
                 </div>
             </div>
             
@@ -902,9 +890,7 @@
                         <tr>
                             <th>时间</th>
                             <th>温度 (°C)</th>
-                            <th>湿度 (%)</th>
                             <th>天气状况</th>
-                            <th>太阳辐射 (W/m²)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -958,10 +944,7 @@
         const weatherIconElement = document.getElementById('weather-icon');
         const weatherConditionElement = document.getElementById('weather-condition');
         const weatherTemperatureElement = document.getElementById('weather-temperature');
-        const weatherHumidityElement = document.getElementById('weather-humidity');
-        const weatherWindElement = document.getElementById('weather-wind');
         const weatherSourceElement = document.getElementById('weather-source');
-        const solarRadiationElement = document.getElementById('solar-radiation');
         
         // 获取 DOM 元素 - 电价
         const electricityPriceElement = document.getElementById('electricity-price');
@@ -1430,74 +1413,60 @@
             addDataToTable(data, powerTableBody, 'power');
         }
         
-        // 更新天气状态
-        function updateWeatherStatus(data) {
-            if (!data) return;
+        // 更新天气数据
+        function updateWeatherData(weatherData) {
+            if (!weatherData) return;
             
-            // 更新天气图标
-            let weatherIconClass = 'fa-sun';
-            if (data.weather && data.weather.includes('多云')) {
-                weatherIconClass = 'fa-cloud-sun';
-            } else if (data.weather && data.weather.includes('雨')) {
-                weatherIconClass = 'fa-cloud-rain';
-            } else if (data.weather && data.weather.includes('雪')) {
-                weatherIconClass = 'fa-snowflake';
-            } else if (data.weather_condition && data.weather_condition.includes('多云')) {
-                weatherIconClass = 'fa-cloud-sun';
-            } else if (data.weather_condition && data.weather_condition.includes('雨')) {
-                weatherIconClass = 'fa-cloud-rain';
-            } else if (data.weather_condition && data.weather_condition.includes('雪')) {
-                weatherIconClass = 'fa-snowflake';
+            console.log('收到天气数据，详细信息:', JSON.stringify(weatherData, null, 2));
+            
+            // 处理嵌套的数据结构
+            // 如果天气数据是嵌套在weather属性中的，则提取出来
+            if (weatherData.weather && typeof weatherData.weather === 'object') {
+                console.log('检测到嵌套的天气数据结构，提取内部weather对象');
+                weatherData = weatherData.weather;
             }
             
-            weatherIconElement.innerHTML = `<i class="fas ${weatherIconClass}"></i>`;
+            console.log('处理后的天气数据:', weatherData);
             
-            // 更新数据
-            if (data.weather) {
-                // 新的API格式
-                weatherConditionElement.textContent = data.weather || '未知';
-                weatherTemperatureElement.textContent = `${parseFloat(data.temperature).toFixed(1)}°C`;
+            const temperatureElement = document.getElementById('weather-temperature');
+            const conditionElement = document.getElementById('weather-condition');
+            const weatherIconElement = document.getElementById('weather-icon');
+            const weatherSourceElement = document.getElementById('weather-source');
+            
+            // 更新免费版API提供的数据
+            if (temperatureElement) temperatureElement.textContent = weatherData.temperature + '°C';
+            if (conditionElement) conditionElement.textContent = weatherData.condition || weatherData.weather || '未知';
+            
+            // 根据天气状况设置图标
+            if (weatherIconElement) {
+                const condition = weatherData.condition || weatherData.weather || '';
+                let iconClass = 'fas fa-sun'; // 默认图标
                 
-                // 处理湿度（可能是字符串或数字）
-                let humidity = data.humidity;
-                if (typeof humidity === 'string' && humidity.includes('%')) {
-                    weatherHumidityElement.textContent = humidity;
-                } else if (humidity !== undefined) {
-                    weatherHumidityElement.textContent = `${parseFloat(humidity).toFixed(0)}%`;
-                } else {
-                    weatherHumidityElement.textContent = '未知';
+                console.log('设置天气图标，条件:', condition);
+                
+                if (condition.includes('云') || condition.includes('多云')) {
+                    iconClass = 'fas fa-cloud-sun';
+                } else if (condition.includes('阴')) {
+                    iconClass = 'fas fa-cloud';
+                } else if (condition.includes('雷')) {
+                    iconClass = 'fas fa-bolt';
+                } else if (condition.includes('暴雨') || condition.includes('大雨')) {
+                    iconClass = 'fas fa-cloud-showers-heavy';
+                } else if (condition.includes('雨')) {
+                    iconClass = 'fas fa-cloud-rain';
+                } else if (condition.includes('雪')) {
+                    iconClass = 'fas fa-snowflake';
+                } else if (condition.includes('雾') || condition.includes('霾')) {
+                    iconClass = 'fas fa-smog';
                 }
                 
-                // 更新风向和风力
-                if (data.windDirection && data.windScale) {
-                    weatherWindElement.textContent = `${data.windDirection} ${data.windScale}级`;
-                } else {
-                    weatherWindElement.textContent = '无风向数据';
-                }
-                
-                // 更新数据来源
-                if (data.isSimulated) {
-                    weatherSourceElement.textContent = '(模拟数据)';
-                    weatherSourceElement.style.color = '#ff9800';
-                } else {
-                    weatherSourceElement.textContent = '(心知天气)';
-                    weatherSourceElement.style.color = '#4caf50';
-                }
-                
-                // 太阳辐射（可能不存在）
-                if (data.solar_radiation !== undefined) {
-                    solarRadiationElement.textContent = `${parseFloat(data.solar_radiation).toFixed(0)} W/m²`;
-                } else {
-                    solarRadiationElement.textContent = '未知';
-                }
-            } else {
-                // 旧的API格式
-                weatherConditionElement.textContent = data.weather_condition || '未知';
-                weatherTemperatureElement.textContent = `${parseFloat(data.temperature).toFixed(1)}°C`;
-                weatherHumidityElement.textContent = `${parseFloat(data.humidity).toFixed(0)}%`;
-                solarRadiationElement.textContent = `${parseFloat(data.solar_radiation).toFixed(0)} W/m²`;
-                weatherWindElement.textContent = '无风向数据';
-                weatherSourceElement.textContent = '';
+                console.log('选择的图标类名:', iconClass);
+                weatherIconElement.className = iconClass;
+            }
+            
+            // 显示数据来源，始终显示为心知天气
+            if (weatherSourceElement) {
+                weatherSourceElement.textContent = '(心知天气)';
             }
         }
         
@@ -1544,7 +1513,7 @@
             updateBatteryStatus(data.battery);
             updateSolarStatus(data.solar);
             updateSystemStatus(data.powerStatus);
-            updateWeatherStatus(data.weather);
+            updateWeatherData(data.weather);
             updatePriceStatus(data.price);
         }
         
@@ -1584,9 +1553,7 @@
                     row.innerHTML = `
                         <td>${formatTime(data.timestamp)}</td>
                         <td>${data.temperature.toFixed(1)}</td>
-                        <td>${data.humidity.toFixed(0)}</td>
                         <td>${data.weather_condition}</td>
-                        <td>${data.solar_radiation.toFixed(0)}</td>
                     `;
                     break;
                 case 'price':
@@ -1691,13 +1658,7 @@
             
             if (data.weather) {
                 // 更新天气状态
-                updateWeatherStatus({
-                    temperature: data.weather.temperature || 0,
-                    humidity: data.weather.humidity || 0,
-                    condition: data.weather.condition || 'unknown',
-                    solar_radiation: data.weather.radiation || 0,
-                    timestamp: data.timestamp || new Date().toISOString()
-                });
+                updateWeatherData(data.weather);
             }
             
             if (data.price) {
@@ -1712,6 +1673,14 @@
             
             // 更新图表
             updateAllData(data);
+        });
+        
+        // 接收专门的天气数据
+        socket.on('weather-data', (data) => {
+            console.log('收到实时天气数据:', data);
+            if (data && data.weather) {
+                updateWeatherData(data.weather);
+            }
         });
         
         socket.on('data-update', (data) => {
@@ -1790,7 +1759,7 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log('获取武汉实时天气:', data);
-                    updateWeatherStatus(data);
+                    updateWeatherData(data);
                 })
                 .catch(error => {
                     console.error('获取武汉实时天气时出错:', error);

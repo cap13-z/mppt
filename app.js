@@ -57,114 +57,20 @@ try {
     console.error('创建数据库连接池失败:', error);
 }
 
-// 尝试导入AMQP客户端，如果失败则继续运行
-let amqpClient = null;
-try {
-    const { startAmqpClient } = require('./amqp-client');
-    // 尝试启动AMQP客户端，但不阻止服务器启动
-    try {
-        amqpClient = startAmqpClient(io);
-        console.log('AMQP客户端启动成功');
-    } catch (error) {
-        console.error('启动AMQP客户端失败:', error);
-        console.log('将使用模拟数据模式');
-    }
-} catch (error) {
-    console.error('导入AMQP客户端模块失败:', error);
-    console.log('将使用模拟数据模式');
-}
-
-// 如果AMQP客户端不可用，创建一个模拟数据生成器
-if (!amqpClient) {
-    console.log('创建模拟数据生成器...');
+// 启动服务器
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`服务器运行在端口 ${PORT}`);
     
-    // 模拟数据生成函数
-    function generateSimulatedData() {
-        const now = new Date();
-        
-        // 模拟电池数据
-        const batteryData = {
-            voltage: 12 + Math.random() * 2, // 12-14V
-            capacity: 50 + Math.random() * 50, // 50-100%
-            temperature: 25 + Math.random() * 10, // 25-35°C
-            current: 1 + Math.random() * 2, // 1-3A
-            status: ['充电中', '放电中', '满电状态'][Math.floor(Math.random() * 3)],
-            timestamp: now
-        };
-        
-        // 模拟太阳能数据
-        const solarData = {
-            voltage: 18 + Math.random() * 4, // 18-22V
-            current: 0.5 + Math.random() * 2.5, // 0.5-3A
-            power: 0,
-            efficiency: 70 + Math.random() * 20, // 70-90%
-            timestamp: now
-        };
-        solarData.power = solarData.voltage * solarData.current;
-        
-        // 模拟系统供电状态
-        const powerStatus = {
-            source: Math.random() > 0.5 ? '太阳能' : '电网',
-            load_power: 50 + Math.random() * 150, // 50-200W
-            solar_status: Math.random() > 0.3 ? '正常' : '离线',
-            grid_status: Math.random() > 0.2 ? '正常' : '断电',
-            timestamp: now
-        };
-        
-        // 模拟天气数据
-        const weatherData = {
-            temperature: 20 + Math.random() * 15, // 20-35°C
-            humidity: 40 + Math.random() * 40, // 40-80%
-            weather_condition: ['晴朗', '多云', '阴天', '小雨'][Math.floor(Math.random() * 4)],
-            solar_radiation: 200 + Math.random() * 600, // 200-800 W/m²
-            timestamp: now
-        };
-        
-        // 模拟电价数据
-        const priceData = {
-            price: 0.5 + Math.random() * 0.3, // 0.5-0.8 元/kWh
-            price_level: ['峰值', '平值', '谷值'][Math.floor(Math.random() * 3)],
-            next_change_time: new Date(now.getTime() + 3600000 + Math.random() * 3600000), // 1-2小时后
-            timestamp: now
-        };
-        
-        // 发送模拟数据到客户端
-        io.emit('data-update', {
-            battery: batteryData,
-            solar: solarData,
-            powerStatus: powerStatus,
-            weather: weatherData,
-            price: priceData
-        });
-        
-        console.log('已发送模拟数据');
-    }
+    // 不再启动 AMQP 客户端，直接启动模拟数据发送
+    console.log('启动模拟数据发送...');
+    const amqpClient = require('./amqp-client');
+    amqpClient.startAmqpClient(io);
     
-    // 启动模拟数据定时器
-    const simulationInterval = 10000; // 10秒发送一次模拟数据
-    const simulationTimer = setInterval(generateSimulatedData, simulationInterval);
-    
-    // 立即发送一次模拟数据
-    generateSimulatedData();
-    
-    // 设置进程退出时清理定时器
-    process.on('SIGINT', () => {
-        if (simulationTimer) {
-            clearInterval(simulationTimer);
-            console.log('模拟数据定时器已清理');
-        }
-    });
-    
-    // 创建一个简单的amqpClient对象，以便其他代码可以正常运行
-    amqpClient = {
-        connection: null,
-        updateLastRealDataTime: () => {},
-        startSimulation: () => {},
-        stopSimulation: () => {},
-        setSimulationEnabled: () => {},
-        setSimulationInterval: () => {}
-    };
-}
+    // 启动天气服务
+    const weatherService = require('./weather-service');
+    weatherService.startWeatherService(io);
+});
 
 // 基本路由
 app.get('/', (req, res) => {
@@ -493,7 +399,7 @@ app.get('/api/energy-data', async (req, res) => {
 
 // Socket.IO 连接处理
 io.on('connection', (socket) => {
-    console.log('新客户端连接');
+    console.log('新的客户端连接');
     
     // 当客户端请求历史数据时
     socket.on('get-historical-data', async () => {
@@ -528,12 +434,6 @@ io.on('connection', (socket) => {
                 'SELECT * FROM energy_data ORDER BY timestamp DESC LIMIT 20'
             );
             
-            // 如果查询到了数据，更新上次接收真实数据的时间
-            if (batteryData.length > 0 || solarData.length > 0 || powerStatus.length > 0 || 
-                weatherData.length > 0 || priceData.length > 0 || energyData.length > 0) {
-                amqpClient.updateLastRealDataTime();
-            }
-            
             // 发送历史数据给客户端
             socket.emit('historical-data', {
                 battery: batteryData,
@@ -549,104 +449,9 @@ io.on('connection', (socket) => {
         }
     });
     
-    // 当客户端断开连接时
+    // 处理断开连接
     socket.on('disconnect', () => {
         console.log('客户端断开连接');
-    });
-});
-
-// 设置进程退出时的清理操作
-process.on('SIGINT', async () => {
-    console.log('正在关闭服务器...');
-    
-    // 停止模拟数据发送
-    if (amqpClient && amqpClient.stopSimulation) {
-        amqpClient.stopSimulation();
-    }
-    
-    // 关闭数据库连接
-    try {
-        await pool.end();
-        console.log('数据库连接已关闭');
-    } catch (err) {
-        console.error('关闭数据库连接时出错:', err);
-    }
-    
-    // 关闭服务器
-    server.close(() => {
-        console.log('服务器已关闭');
-        process.exit(0);
-    });
-});
-
-// 启动服务器
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`服务器运行在端口 ${PORT}`);
-    console.log(`访问地址: http://localhost:${PORT}`);
-    
-    // 启动湖北省电价数据更新任务
-    const priceUpdateJob = hubeiElectricityPrice.startPriceUpdateJob();
-    
-    // 启动武汉天气数据更新任务
-    const weatherUpdateJob = wuhanWeatherService.startWeatherUpdateJob();
-    
-    // 新增：定时获取天气数据并通过Socket.IO发送给客户端
-    const sendWeatherData = async () => {
-        try {
-            console.log('正在获取并发送天气数据...');
-            const weatherData = await wuhanWeatherService.fetchWeatherData();
-            
-            // 格式化为前端期望的格式
-            const formattedWeatherData = {
-                timestamp: new Date().toISOString(),
-                weather: {
-                    temperature: weatherData.temperature,
-                    humidity: weatherData.humidity,
-                    condition: weatherData.weather,
-                    weather: weatherData.weather,
-                    weather_condition: weatherData.weather,
-                    windDirection: weatherData.windDirection,
-                    windScale: weatherData.windScale,
-                    radiation: weatherData.radiation || 800,
-                    isSimulated: weatherData.isSimulated || false,
-                    partiallySimulated: weatherData.partiallySimulated || false // 添加部分模拟标记
-                }
-            };
-            
-            // 通过Socket.IO发送给所有客户端
-            io.emit('device-data', formattedWeatherData);
-            console.log('天气数据已通过Socket.IO发送');
-            
-        } catch (error) {
-            console.error('获取并发送天气数据时出错:', error);
-        }
-    };
-    
-    // 立即获取并发送一次天气数据
-    sendWeatherData();
-    
-    // 设置定时获取并发送天气数据
-    const sendWeatherDataInterval = setInterval(sendWeatherData, 300000); // 每5分钟执行一次
-    
-    // 设置进程退出时清理任务
-    process.on('SIGINT', () => {
-        if (priceUpdateJob) {
-            priceUpdateJob.cancel();
-            console.log('电价数据更新任务已取消');
-        }
-        
-        if (weatherUpdateJob) {
-            weatherUpdateJob.cancel();
-            console.log('天气数据更新任务已取消');
-        }
-        
-        if (sendWeatherDataInterval) {
-            clearInterval(sendWeatherDataInterval);
-            console.log('天气数据发送任务已取消');
-        }
-        
-        process.exit();
     });
 });
 

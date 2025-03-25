@@ -1,18 +1,11 @@
 // amqp-client.js
-// 阿里云AMQP客户端，用于获取设备数据
+// 阿里云AMQP客户端，用于获取设备数据（当前仅使用模拟数据）
 
-const rhea = require('rhea');
-const crypto = require('node:crypto');
 const mysql = require('mysql2/promise');
 
-// 阿里云AMQP配置
-const config = {
-    endPoint: 'amqps://ilop.iot-amqp.cn-shanghai.aliyuncs.com:5671',
-    appKey: '335298326',  // 使用您的AppKey
-    appSecret: 'dd8915b8ab8d4f1dbf512c5be0d29713',  // 使用您的AppSecret
-    consumerGroupId: '335298326',  // 通常与AppKey相同
-    clientId: 'mppt_client_' + Math.random().toString(36).substring(2, 15),
-    productKey: 'a1Nz0KACK2w'  // 您的产品Key
+// 模拟设备配置
+const deviceConfig = {
+    productKey: 'a1Nz0KACK2w'  // 模拟的产品Key
 };
 
 // 数据库配置
@@ -30,10 +23,26 @@ const pool = mysql.createPool(dbConfig);
 let simulationConfig = {
     enabled: true,  // 是否启用模拟数据
     interval: 10000,  // 模拟数据发送间隔（毫秒）
-    realDataTimeout: 30000,  // 真实数据超时时间（毫秒）
+    simulationTimer: null,  // 模拟数据定时器
     lastRealDataTime: 0,  // 上次接收到真实数据的时间
-    simulationTimer: null  // 模拟数据定时器
+    realDataTimeout: 30000  // 真实数据超时时间（毫秒）
 };
+
+// 模拟数据状态变量 - 用于保持数据平滑变化
+let simulationState = {
+    batteryCapacity: 75.5,  // 电池容量百分比
+    batteryTrend: 0.1,      // 电池变化趋势
+    solarVoltage: 15.2,     // 太阳能电压
+    solarCurrent: 0.98,     // 太阳能电流
+    loadPower: 15.0,        // 负载功率
+    temperature: 28.0       // 温度
+};
+
+// 启动AMQP客户端函数（现在只启动模拟数据）
+function startAmqpClient(io) {
+    console.log('启动模拟数据发送器...');
+    return startSimulation(io);
+}
 
 // 保存数据到数据库
 async function saveToDatabase(data) {
@@ -47,11 +56,11 @@ async function saveToDatabase(data) {
                 // 处理电压数据
                 if (data.params.vot !== undefined) {
                     await conn.query(
-                        'INSERT INTO battery_data (voltage, capacity, temperature, current, timestamp) VALUES (?, ?, ?, ?, NOW())',
+                        'INSERT INTO battery_data (voltage, capacity, temperature, timestamp) VALUES (?, ?, ?, NOW())',
                         [data.params.vot, 
                          calculateBatteryCapacity(data.params.vot), // 根据电压估算电池容量
-                         data.params.tem || 25, // 如果有温度数据则使用，否则默认25度
-                         0] // 没有电流数据，默认为0
+                         data.params.tem || 25 // 如果有温度数据则使用，否则默认25度
+                        ] 
                     );
                 }
                 
@@ -64,33 +73,19 @@ async function saveToDatabase(data) {
                          'MPPT模式']
                     );
                     
-                    // 同时也保存到太阳能数据表，作为太阳能输出功率
-                    await conn.query(
-                        'INSERT INTO solar_data (voltage, current, power, efficiency, timestamp) VALUES (?, ?, ?, ?, NOW())',
-                        [data.params.vot || 0, 
-                         data.params.powerConsumption / (data.params.vot || 1), // 根据功率和电压计算电流
-                         data.params.powerConsumption,
-                         85] // 默认效率85%
-                    );
+                    // 更新最后一次真实数据接收时间
+                    updateLastRealDataTime();
                 }
                 
-                // 处理温度数据
-                if (data.params.tem !== undefined) {
+                // 处理天气数据
+                if (data.params.weatherCondition !== undefined) {
                     await conn.query(
-                        'INSERT INTO weather_data (temperature, humidity, weather_condition, solar_radiation, timestamp) VALUES (?, ?, ?, ?, NOW())',
-                        [data.params.tem, 
-                         50, // 默认湿度50%
-                         '晴朗', // 默认天气状况
-                         800] // 默认太阳辐射
-                    );
-                }
-                
-                // 处理电表状态数据
-                if (data.params.ElectricMeterState !== undefined) {
-                    const status = getStatusFromMeterState(data.params.ElectricMeterState);
-                    await conn.query(
-                        'INSERT INTO power_status (status, timestamp) VALUES (?, NOW())',
-                        [status]
+                        'INSERT INTO weather_data (city, weather, temperature, status) VALUES (?, ?, ?, ?)',
+                        ['武汉', 
+                         data.params.weatherCondition,
+                         data.params.tem || 25,
+                         '正常'
+                        ]
                     );
                 }
             }
@@ -100,26 +95,84 @@ async function saveToDatabase(data) {
                 'INSERT INTO power_status (status, timestamp) VALUES (?, NOW())',
                 [data.status]
             );
+        } else {
+            // 保存其他类型数据（如模拟数据）
+            console.log('保存其他类型数据');
+            
+            // 保存电池状态数据
+            if (data.battery) {
+                await conn.query(
+                    'INSERT INTO battery_data (voltage, capacity, temperature, timestamp) VALUES (?, ?, ?, NOW())',
+                    [data.battery.voltage, 
+                     data.battery.capacity,
+                     data.battery.temperature]
+                );
+            }
+            
+            // 保存功耗状态数据
+            if (data.power) {
+                await conn.query(
+                    'INSERT INTO power_status (status, load_power, mode, timestamp) VALUES (?, ?, ?, NOW())',
+                    [data.power.status,
+                     data.power.loadPower,
+                     data.power.mode]
+                );
+            }
+            
+            // 保存天气数据
+            if (data.weather) {
+                await conn.query(
+                    'INSERT INTO weather_data (city, weather, `condition`, temperature, status) VALUES (?, ?, ?, ?, ?)',
+                    ['武汉', 
+                     data.weather.weather || data.weather.condition || '未知',
+                     data.weather.condition || data.weather.weather || '未知', 
+                     data.weather.temperature || 25,
+                     '正常'
+                    ]
+                );
+            }
         }
         
         conn.release();
-        console.log('数据已保存到数据库');
-    } catch (err) {
-        console.error('保存数据到数据库时出错:', err);
+    } catch (error) {
+        console.error('保存数据到数据库时出错:', error);
     }
 }
 
 // 根据电压估算电池容量
 function calculateBatteryCapacity(voltage) {
-    // 假设电池电压范围为10.5V（空）到12.6V（满）
-    const minVoltage = 10.5;
-    const maxVoltage = 12.6;
+    // 5V锂电池的电压范围为4.0V（空）到5.2V（满）
+    const minVoltage = 4.0;
+    const maxVoltage = 5.2;
     
     if (voltage >= maxVoltage) return 100;
     if (voltage <= minVoltage) return 0;
     
     // 线性映射电压到容量
-    return Math.round((voltage - minVoltage) / (maxVoltage - minVoltage) * 100);
+    return parseFloat(((voltage - minVoltage) / (maxVoltage - minVoltage) * 100).toFixed(1));
+}
+
+// 计算电池电压
+function calculateBatteryVoltage(capacity) {
+    // 5V锂电池的电压范围为4.0V（空）到5.2V（满）
+    const minVoltage = 4.0;
+    const maxVoltage = 5.2;
+    
+    // 线性映射容量到电压
+    return parseFloat((minVoltage + (capacity / 100) * (maxVoltage - minVoltage)).toFixed(2));
+}
+
+// 生成平滑变化的值
+function smoothChange(lastValue, min, max, maxChange, decimal = 0) {
+    // 生成-1到1之间的随机变化方向
+    const changeDirection = (Math.random() * 2) - 1;
+    // 计算本次变化量
+    const change = changeDirection * Math.random() * maxChange;
+    // 计算新值并确保在范围内
+    let newValue = lastValue + change;
+    if (newValue > max) newValue = max;
+    if (newValue < min) newValue = min;
+    return parseFloat(newValue.toFixed(decimal));
 }
 
 // 根据电表状态获取系统状态
@@ -139,63 +192,58 @@ function generateSimulatedData() {
     const now = new Date();
     const hour = now.getHours();
     
-    // 根据时间生成不同的模拟数据
-    // 白天(6-18点)：太阳能发电较多，电池充电
-    // 晚上(18-6点)：太阳能发电较少，电池放电
-    const isDaytime = hour >= 6 && hour < 18;
+    // 根据时间调整电池容量变化趋势
+    // 白天(8-17点)：太阳能充足，电池趋势为充电
+    // 晚上(18-7点)：用电较多，电池趋势为放电
+    if (hour >= 8 && hour < 17) {
+        simulationState.batteryTrend = Math.random() * 0.2 + 0.1; // 白天缓慢充电
+    } else {
+        simulationState.batteryTrend = -1 * (Math.random() * 0.15 + 0.05); // 晚上缓慢放电
+    }
     
-    // 生成随机波动
-    const randomFluctuation = () => (Math.random() * 0.2 + 0.9);
+    // 平滑更新电池容量
+    simulationState.batteryCapacity += simulationState.batteryTrend;
+    if (simulationState.batteryCapacity > 100) simulationState.batteryCapacity = 100;
+    if (simulationState.batteryCapacity < 10) simulationState.batteryCapacity = 10;
     
-    // 电压 - 白天略高，晚上略低
-    const baseVoltage = isDaytime ? 12.2 : 11.8;
-    const voltage = baseVoltage * randomFluctuation();
+    // 根据容量计算电压
+    const voltage = calculateBatteryVoltage(simulationState.batteryCapacity);
     
-    // 功耗 - 白天略低（太阳能供电），晚上略高（电池供电）
-    const basePower = isDaytime ? 80 : 120;
-    const powerConsumption = basePower * randomFluctuation();
+    // 平滑更新太阳能电压和电流
+    simulationState.solarVoltage = smoothChange(simulationState.solarVoltage, 14.5, 15.5, 0.1, 2);
+    simulationState.solarCurrent = smoothChange(simulationState.solarCurrent, 0.9, 1.1, 0.02, 2);
     
-    // 温度 - 白天略高，晚上略低
-    const baseTemp = isDaytime ? 28 : 22;
-    const temperature = baseTemp * randomFluctuation();
+    // 平滑更新负载功率（控制在13-17W左右）
+    simulationState.loadPower = smoothChange(simulationState.loadPower, 13, 17, 0.3, 2);
     
-    // 生成湿度数据 - 白天略低，晚上略高
-    const baseHumidity = isDaytime ? 45 : 65;
-    const humidity = Math.min(100, baseHumidity * randomFluctuation());
+    // 平滑更新温度
+    simulationState.temperature = smoothChange(simulationState.temperature, 25, 35, 0.3, 1);
     
-    // 生成天气状况 - 根据随机数决定
-    const weatherConditions = ['晴朗', '多云', '阴天', '小雨', '中雨'];
-    const weatherCondition = weatherConditions[Math.floor(Math.random() * weatherConditions.length)];
+    // 生成系统供电状态 - 白天使用太阳能，晚上使用电网
+    const electricMeterState = (hour >= 8 && hour < 17) ? 2 : 3; // 2-太阳能，3-电网
     
-    // 生成太阳辐射 - 白天较高，晚上为0
-    const baseSolarRadiation = isDaytime ? 800 : 0;
-    const solarRadiation = baseSolarRadiation * (isDaytime ? randomFluctuation() : 0);
-    
-    // 生成风向 - 随机选择
-    const windDirections = ['东风', '南风', '西风', '北风', '东北风', '东南风', '西南风', '西北风'];
-    const windDirection = windDirections[Math.floor(Math.random() * windDirections.length)];
-    
-    // 生成风力等级 - 1-6级随机
-    const windScale = Math.floor(Math.random() * 6) + 1;
-    
-    // 电表状态 - 白天更可能使用太阳能，晚上更可能使用电网
-    const electricMeterState = isDaytime ? 
-        (Math.random() > 0.7 ? 3 : 2) : // 白天70%太阳能，30%电网
-        (Math.random() > 0.3 ? 3 : 2);  // 晚上30%太阳能，70%电网
+    // 标准天气状况，使用明确的字符串而不是随机索引
+    const standardWeatherConditions = ['晴朗', '多云', '阴天', '小雨'];
+    const weatherIndex = Math.floor(Math.random() * standardWeatherConditions.length);
+    const weatherCondition = standardWeatherConditions[weatherIndex];
     
     // 构造模拟数据
     return {
-        topic: '/sys/' + config.productKey + '/thing/event/property/post',
+        topic: '/sys/' + deviceConfig.productKey + '/thing/event/property/post',
         params: {
-            vot: parseFloat(voltage.toFixed(2)),
-            powerConsumption: parseFloat(powerConsumption.toFixed(2)),
-            tem: parseFloat(temperature.toFixed(2)),
-            humidity: parseFloat(humidity.toFixed(1)),
-            weatherCondition: weatherCondition,
-            solarRadiation: parseFloat(solarRadiation.toFixed(0)),
-            windDirection: windDirection,
-            windScale: windScale.toString(),
-            ElectricMeterState: electricMeterState
+            vot: voltage,
+            powerConsumption: simulationState.loadPower,
+            tem: simulationState.temperature,
+            humidity: parseFloat(smoothChange(50, 40, 70, 1, 1)),
+            weatherCondition: weatherCondition, // 使用标准天气状况
+            solarRadiation: hour >= 8 && hour < 17 ? 
+                parseFloat(smoothChange(600, 400, 800, 20, 0)) : 
+                parseFloat(smoothChange(100, 0, 200, 10, 0)),
+            windDirection: ['东风', '南风', '西风', '北风'][Math.floor(Math.random() * 4)],
+            windScale: Math.floor(Math.random() * 4) + 1,
+            ElectricMeterState: electricMeterState,
+            solarVoltage: simulationState.solarVoltage,
+            solarCurrent: simulationState.solarCurrent
         },
         isSimulated: true // 标记为模拟数据
     };
@@ -206,51 +254,53 @@ function formatDataForFrontend(data) {
     // 如果是设备属性上报数据
     if (data.params) {
         const timestamp = new Date().toISOString();
+        const batteryStatus = data.params.ElectricMeterState === 2 ? '充电中' : 
+                              (simulationState.batteryCapacity > 95 ? '满电状态' : '放电中');
+        
+        // 从缓存获取最新的天气数据
+        let weatherData = null;
+        if (require('./weather-service').getLastWeatherData) {
+            weatherData = require('./weather-service').getLastWeatherData();
+        }
         
         return {
             timestamp: timestamp,
             battery: {
                 voltage: data.params.vot || 0,
-                capacity: data.params.vot ? calculateBatteryCapacity(data.params.vot) : 0,
+                capacity: simulationState.batteryCapacity,
                 temperature: data.params.tem || 25,
-                current: 0, // 没有电流数据，默认为0
-                status: data.params.ElectricMeterState !== undefined ? 
-                    getStatusFromMeterState(data.params.ElectricMeterState) : 'unknown'
+                current: simulationState.batteryTrend > 0 ? 0.8 : 0.4, // 充电电流较大，放电电流较小
+                status: batteryStatus
             },
             solar: {
-                voltage: data.params.vot || 0,
-                current: data.params.powerConsumption && data.params.vot ? 
-                    (data.params.powerConsumption / data.params.vot) : 0,
-                power: data.params.powerConsumption || 0,
-                efficiency: 85, // 默认效率85%
-                temperature: data.params.tem || 25
+                voltage: data.params.solarVoltage || 15.0,
+                current: data.params.solarCurrent || 1.0,
+                power: parseFloat((data.params.solarVoltage * data.params.solarCurrent).toFixed(1)) || 15.0,
+                efficiency: smoothChange(85, 80, 90, 0.5, 1), // 高效率
+                temperature: data.params.tem ? data.params.tem + 5 : 35 // 太阳能板温度略高于环境温度
             },
             system: {
-                online: data.params.ElectricMeterState !== undefined ? 
-                    (data.params.ElectricMeterState !== 0 && data.params.ElectricMeterState !== 1) : true,
+                online: true,
                 source: data.params.ElectricMeterState === 3 ? '电网' : '太阳能',
-                loadPower: data.params.powerConsumption || 0,
+                loadPower: data.params.powerConsumption || 15.0,
                 mode: 'MPPT模式',
                 gridStatus: data.params.ElectricMeterState === 3 ? '在线' : '离线',
-                solarStatus: data.params.ElectricMeterState !== 3 ? '在线' : '离线',
-                meterStatus: data.params.ElectricMeterState !== undefined ? 
-                    ['离线正常', '离线异常', '设备管理', '电网端'][data.params.ElectricMeterState] : '未知'
+                solarStatus: data.params.ElectricMeterState === 2 ? '在线' : '离线',
+                meterStatus: ['离线正常', '离线异常', '太阳能模式', '电网模式'][data.params.ElectricMeterState] || '未知'
             },
-            weather: {
-                temperature: data.params.tem || 25,
-                humidity: data.params.humidity || 50, // 默认湿度50%
-                condition: data.params.weatherCondition || '晴朗', // 默认天气状况
-                radiation: data.params.solarRadiation || 800, // 默认太阳辐射
-                windDirection: data.params.windDirection || '东北风', // 默认风向
-                windScale: data.params.windScale || '3', // 默认风力等级
-                isSimulated: data.isSimulated || true // 标记是否为模拟数据
+            weather: weatherData ? {
+                temperature: weatherData.temperature,
+                condition: weatherData.weather
+            } : {
+                temperature: '20',
+                condition: '多云'
             },
             price: {
-                current: 0.5, // 默认电价
-                level: '平值', // 默认电价等级
-                nextChange: new Date(Date.now() + 3600000).toISOString() // 默认下次变动时间为1小时后
+                current: 0.5,
+                level: '平值',
+                nextChange: new Date(Date.now() + 3600000).toISOString()
             },
-            isSimulated: data.isSimulated || false // 标记是否为模拟数据
+            isSimulated: data.isSimulated || false
         };
     }
     
@@ -264,23 +314,6 @@ function formatDataForFrontend(data) {
     }
     
     return data;
-}
-
-// 生成认证信息
-function generateAuth() {
-    const random = Math.floor(Date.now());
-    const signContent = 'random=' + random;
-    const hmac = crypto.createHmac('sha256', config.appSecret);
-    hmac.update(signContent);
-    const password = hmac.digest('base64');
-    
-    const username = config.clientId + '|authMode=appkey'
-        + ',signMethod=SHA256'
-        + ',random=' + random
-        + ',appKey=' + config.appKey
-        + ',groupId=' + config.consumerGroupId + '|';
-        
-    return { username, password };
 }
 
 // 启动模拟数据发送
@@ -333,112 +366,6 @@ function stopSimulation() {
 function updateLastRealDataTime() {
     simulationConfig.lastRealDataTime = Date.now();
     console.log('更新上次真实数据接收时间：', new Date(simulationConfig.lastRealDataTime).toLocaleString());
-}
-
-// 启动AMQP客户端函数
-function startAmqpClient(io) {
-    try {
-        console.log('正在创建AMQP连接...');
-        
-        // 启动模拟数据发送
-        startSimulation(io);
-        
-        // 创建AMQP连接
-        const auth = generateAuth();
-        const connection = rhea.connect({
-            host: 'ilop.iot-amqp.cn-shanghai.aliyuncs.com',
-            port: 5671,
-            transport: 'tls',
-            idle_time_out: 80000,
-            username: auth.username,
-            password: auth.password
-        });
-
-        // 处理连接事件
-        connection.on('connection_open', function(context) {
-            console.log('AMQP连接已建立');
-            const receiver = context.connection.open_receiver('default');
-            
-            receiver.on('message', function(context) {
-                try {
-                    const message = context.message;
-                    const data = JSON.parse(message.body);
-                    console.log('收到AMQP消息:', data);
-                    
-                    // 更新上次接收真实数据的时间
-                    updateLastRealDataTime();
-                    
-                    // 保存数据到数据库
-                    saveToDatabase(data);
-                    
-                    // 如果提供了Socket.IO实例，发送数据到前端
-                    if (io) {
-                        // 转换数据格式，适应前端显示
-                        const formattedData = formatDataForFrontend(data);
-                        io.emit('device-data', formattedData);
-                    }
-                } catch (err) {
-                    console.error('处理AMQP消息时出错:', err);
-                }
-            });
-        });
-
-        connection.on('disconnected', function(context) {
-            console.log('AMQP连接已断开', context.error);
-            // 尝试重新连接
-            setTimeout(() => {
-                console.log('尝试重新连接AMQP...');
-                startAmqpClient(io);
-            }, 5000);
-        });
-        
-        // 添加错误处理
-        connection.on('error', function(context) {
-            console.error('AMQP连接错误:', context.error);
-        });
-        
-        return {
-            connection,
-            updateLastRealDataTime,
-            startSimulation,
-            stopSimulation,
-            setSimulationEnabled: (enabled) => {
-                simulationConfig.enabled = enabled;
-                console.log('模拟数据发送已' + (enabled ? '启用' : '禁用'));
-            },
-            setSimulationInterval: (interval) => {
-                simulationConfig.interval = interval;
-                console.log('模拟数据发送间隔已设置为', interval, 'ms');
-                // 重启模拟数据发送
-                if (simulationConfig.simulationTimer) {
-                    stopSimulation();
-                    startSimulation(io);
-                }
-            }
-        };
-    } catch (error) {
-        console.error('创建AMQP连接时出错:', error);
-        // 即使AMQP连接失败，也返回模拟数据相关的功能
-        return {
-            connection: null,
-            updateLastRealDataTime,
-            startSimulation,
-            stopSimulation,
-            setSimulationEnabled: (enabled) => {
-                simulationConfig.enabled = enabled;
-                console.log('模拟数据发送已' + (enabled ? '启用' : '禁用'));
-            },
-            setSimulationInterval: (interval) => {
-                simulationConfig.interval = interval;
-                console.log('模拟数据发送间隔已设置为', interval, 'ms');
-                // 重启模拟数据发送
-                if (simulationConfig.simulationTimer) {
-                    stopSimulation();
-                    startSimulation(io);
-                }
-            }
-        };
-    }
 }
 
 // 导出函数

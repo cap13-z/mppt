@@ -1,32 +1,124 @@
 /**
  * weather-service.js
  * 从心知天气API获取武汉的实时天气数据
+ * 模拟天气数据服务
  */
-const axios = require('axios');
-const schedule = require('node-schedule');
 const mysql = require('mysql2/promise');
+const axios = require('axios');
+require('dotenv').config();
 
 // 数据库配置
 const dbConfig = {
     host: 'localhost',
-    user: 'root',
+    user: 'mpptuser',
     password: 'password',
-    database: 'energy_dashboard'
+    database: 'energy_system'
 };
-
-// 心知天气API配置
-const API_KEY = 'SMN-aLLz_OY40oLYT'; // 使用私钥作为API密钥
-const CITY = 'wuhan'; // 武汉
-const LANGUAGE = 'zh-Hans'; // 简体中文
-const BASE_URL = 'https://api.seniverse.com/v3';
 
 // 创建数据库连接池
 let pool;
 try {
     pool = mysql.createPool(dbConfig);
     console.log('天气服务成功连接到数据库');
+    
 } catch (error) {
     console.error('天气服务连接数据库失败:', error);
+}
+
+// 心知天气API配置 - 免费版
+const API_KEY = process.env.WEATHER_API_KEY || 'SMN-aLLz_OY40oLYT'; 
+const CITY = 'wuhan'; // 武汉
+const LANGUAGE = 'zh-Hans'; // 简体中文
+const BASE_URL = 'https://api.seniverse.com/v3';
+const UNIT = 'c'; // 温度单位（摄氏度）
+
+// 天气服务配置
+let weatherConfig = {
+    interval: 300000, // 5分钟更新一次
+    weatherTimer: null,
+    lastSuccessfulApiData: null, // 存储上一次成功的API数据
+    lastApiCallTime: 0, // 上一次API调用时间
+    apiCallCooldown: 60000 // API调用冷却时间（1分钟）
+};
+
+/**
+ * 启动天气服务
+ * @param {Object} io - Socket.IO实例，用于向客户端推送数据
+ */
+async function startWeatherService(io) {
+    console.log('启动天气服务...');
+    
+    // 确保weather_data表已创建
+    await resetWeatherTable();
+    
+    // 立即发送一次天气数据
+    await sendWeatherData(io);
+    
+    // 定时发送天气数据
+    weatherConfig.weatherTimer = setInterval(() => {
+        sendWeatherData(io);
+    }, weatherConfig.interval);
+    
+    return weatherConfig.weatherTimer;
+}
+
+/**
+ * 重置weather_data表
+ */
+async function resetWeatherTable() {
+    if (!pool) return;
+    
+    try {
+        console.log('重置weather_data表...');
+        await pool.query('DROP TABLE IF EXISTS weather_data');
+        console.log('weather_data表已删除');
+        
+        // 创建新表，添加condition字段，用反引号避免关键字冲突
+        await pool.query(`
+            CREATE TABLE weather_data (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                city VARCHAR(50),
+                weather VARCHAR(50),
+                \`condition\` VARCHAR(50),
+                temperature VARCHAR(10),
+                status VARCHAR(50) DEFAULT '正常'
+            )
+        `);
+        console.log('weather_data表已重建，包含condition字段');
+        return true;
+    } catch (error) {
+        console.error('重置weather_data表时出错:', error);
+        return false;
+    }
+}
+
+/**
+ * 生成并发送天气数据
+ * @param {Object} io - Socket.IO实例
+ */
+async function sendWeatherData(io) {
+    try {
+        const weatherData = await fetchWeatherData();
+        
+        // 保存天气数据到数据库
+        try {
+            await saveWeatherData(weatherData);
+        } catch (error) {
+            console.error('保存天气数据时出错:', error);
+        }
+        
+        // 通过Socket.IO发送天气数据给客户端
+        if (io) {
+            io.emit('weather-data', {
+                timestamp: new Date().toISOString(),
+                weather: weatherData
+            });
+            console.log('已通过Socket.IO发送天气数据');
+        }
+    } catch (error) {
+        console.error('获取或发送天气数据时出错:', error);
+    }
 }
 
 /**
@@ -34,130 +126,151 @@ try {
  * @returns {Promise<Object>} 天气数据对象
  */
 async function fetchWeatherData() {
+    const now = Date.now();
+    
+    // 检查冷却时间，避免频繁调用API超出免费限额
+    if (weatherConfig.lastSuccessfulApiData && 
+        (now - weatherConfig.lastApiCallTime < weatherConfig.apiCallCooldown)) {
+        console.log('API冷却时间内，使用缓存数据');
+        return weatherConfig.lastSuccessfulApiData;
+    }
+    
+    weatherConfig.lastApiCallTime = now;
+    
     try {
-        // 构建API请求URL，包含公钥和私钥
-        const url = `${BASE_URL}/weather/now.json?key=${API_KEY}&location=${CITY}&language=${LANGUAGE}&unit=c`;
+        console.log('尝试从心知天气API获取数据...');
         
-        console.log('正在请求天气数据...');
+        // 构建API请求URL - 免费版API
+        const url = `${BASE_URL}/weather/now.json?key=${API_KEY}&location=${CITY}&language=${LANGUAGE}&unit=${UNIT}`;
+        console.log('API请求URL:', url);
+        
         const response = await axios.get(url);
         
-        if (response.data && response.data.results && response.data.results.length > 0) {
-            const weatherData = response.data.results[0];
-            const now = weatherData.now;
+        // 检查API返回是否有效
+        if (response.data && response.data.results && response.data.results[0]) {
+            console.log('API返回数据:', JSON.stringify(response.data));
             
-            // 获取当前时间
-            const currentTime = new Date();
-            const hour = currentTime.getHours();
-            const isDaytime = hour >= 6 && hour < 18;
+            // 从API响应中提取基本数据 - 免费版只有城市、天气状况和温度
+            const result = response.data.results[0];
+            const now = result.now || {};
+            const location = result.location || {};
             
-            // 根据温度和天气状况智能填充缺失数据
-            const weatherText = now.text || '晴';
-            
-            // 1. 处理湿度数据 - 如果API没有提供，根据天气状况模拟
-            let humidity = now.humidity ? now.humidity : null;
-            if (!humidity) {
-                // 根据天气状况估算湿度
-                if (weatherText.includes('雨')) {
-                    humidity = Math.floor(70 + Math.random() * 20); // 雨天湿度高 70-90%
-                } else if (weatherText.includes('雪')) {
-                    humidity = Math.floor(65 + Math.random() * 25); // 雪天湿度中高 65-90%
-                } else if (weatherText.includes('雾') || weatherText.includes('霾')) {
-                    humidity = Math.floor(75 + Math.random() * 15); // 雾霾天湿度很高 75-90%
-                } else if (weatherText.includes('阴')) {
-                    humidity = Math.floor(60 + Math.random() * 20); // 阴天湿度中等 60-80%
-                } else if (weatherText.includes('多云')) {
-                    humidity = Math.floor(50 + Math.random() * 20); // 多云湿度适中 50-70%
-                } else {
-                    // 晴天，根据季节和时间估计
-                    const month = currentTime.getMonth() + 1; // 月份从0开始
-                    if (month >= 6 && month <= 8) { // 夏季
-                        humidity = Math.floor(40 + Math.random() * 30); // 夏季晴天湿度 40-70%
-                    } else if (month >= 12 || month <= 2) { // 冬季
-                        humidity = Math.floor(30 + Math.random() * 20); // 冬季晴天湿度较低 30-50%
-                    } else { // 春秋
-                        humidity = Math.floor(35 + Math.random() * 25); // 春秋晴天湿度适中 35-60%
-                    }
-                }
-            }
-            
-            // 2. 处理风向数据 - 如果API没有提供，根据季节和天气状况模拟
-            let windDirection = now.wind_direction;
-            if (!windDirection || windDirection === '未知') {
-                const month = currentTime.getMonth() + 1;
-                const windDirections = ['东风', '南风', '西风', '北风', '东北风', '东南风', '西北风', '西南风'];
-                
-                // 根据季节调整风向概率
-                let directionIndex;
-                if (month >= 12 || month <= 2) { // 冬季，北风概率高
-                    const winterDirections = ['北风', '东北风', '西北风', '东风', '西风'];
-                    directionIndex = Math.floor(Math.random() * winterDirections.length);
-                    windDirection = winterDirections[directionIndex];
-                } else if (month >= 3 && month <= 5) { // 春季，东南风概率高
-                    const springDirections = ['东风', '东南风', '南风', '北风', '东北风'];
-                    directionIndex = Math.floor(Math.random() * springDirections.length);
-                    windDirection = springDirections[directionIndex];
-                } else if (month >= 6 && month <= 8) { // 夏季，南风概率高
-                    const summerDirections = ['南风', '东南风', '西南风', '东风'];
-                    directionIndex = Math.floor(Math.random() * summerDirections.length);
-                    windDirection = summerDirections[directionIndex];
-                } else { // 秋季，西北风概率高
-                    const autumnDirections = ['西北风', '北风', '西风', '东北风'];
-                    directionIndex = Math.floor(Math.random() * autumnDirections.length);
-                    windDirection = autumnDirections[directionIndex];
-                }
-            }
-            
-            // 3. 处理风力等级 - 如果API没有提供，根据天气状况模拟
-            let windScale = now.wind_scale;
-            if (!windScale || windScale === '未知') {
-                if (weatherText.includes('台风') || weatherText.includes('飓风')) {
-                    windScale = (10 + Math.floor(Math.random() * 3)).toString(); // 10-12级
-                } else if (weatherText.includes('暴雨') || weatherText.includes('大雨')) {
-                    windScale = (4 + Math.floor(Math.random() * 4)).toString(); // 4-7级
-                } else if (weatherText.includes('雨')) {
-                    windScale = (2 + Math.floor(Math.random() * 3)).toString(); // 2-4级
-                } else if (weatherText.includes('阴')) {
-                    windScale = (1 + Math.floor(Math.random() * 3)).toString(); // 1-3级
-                } else {
-                    windScale = (Math.floor(Math.random() * 3) + 1).toString(); // 1-3级
-                }
-            }
-            
-            // 估算太阳辐射值
-            const radiation = getEstimatedRadiation(weatherText, currentTime);
-            
-            // 格式化天气数据
-            const formattedData = {
-                city: weatherData.location.name,
-                temperature: now.temperature, // 摄氏度
-                weather: weatherText,
-                humidity: humidity ? humidity + '%' : '未知', // 湿度
-                windDirection: windDirection || '未知',
-                windScale: windScale || '未知',
-                radiation: radiation,
-                timestamp: new Date().toISOString(),
-                isSimulated: false, // 基础数据来自API，但有部分数据是模拟的
-                partiallySimulated: (!now.humidity || !now.wind_direction || !now.wind_scale) // 标记是否部分数据为模拟
+            // 构建简化的天气数据对象
+            const weatherData = {
+                city: location.name || '武汉',
+                temperature: now.temperature || 'N/A',
+                weather: now.text || '未知'
             };
             
-            console.log('成功获取武汉天气数据:', formattedData);
+            console.log('解析出的天气数据:', weatherData);
             
-            // 保存到数据库
-            await saveWeatherToDatabase(formattedData);
-            
-            return formattedData;
+            // 缓存成功获取的数据
+            weatherConfig.lastSuccessfulApiData = weatherData;
+            return weatherData;
         } else {
-            throw new Error('API返回的数据格式不正确');
+            throw new Error('API返回数据结构不符合预期');
         }
     } catch (error) {
-        console.error('获取天气数据失败:', error.message || error);
-        // 如果API请求失败，返回模拟数据
-        return generateSimulatedWeatherData();
+        console.error('获取天气API数据失败:', error.message);
+        if (error.response) {
+            console.error('错误状态码:', error.response.status);
+            console.error('错误响应数据:', JSON.stringify(error.response.data));
+        }
+        
+        // 如果有缓存数据，返回缓存数据
+        if (weatherConfig.lastSuccessfulApiData) {
+            console.log('使用缓存的天气数据');
+            return weatherConfig.lastSuccessfulApiData;
+        }
+        
+        // 如果无法获取数据且没有缓存，返回默认数据
+        return {
+            city: '武汉',
+            temperature: 'N/A',
+            weather: '未知'
+        };
     }
 }
 
 /**
- * 生成模拟的天气数据（当API请求失败时使用）
+ * 保存天气数据到数据库
+ * @param {Object} weatherData - 天气数据
+ */
+async function saveWeatherData(weatherData) {
+    if (!pool) return;
+    
+    try {
+        // 包含status字段的插入语句
+        const query = `
+            INSERT INTO weather_data (city, weather, temperature, status)
+            VALUES (?, ?, ?, ?)
+        `;
+        
+        await pool.query(query, [
+            weatherData.city,
+            weatherData.weather,
+            weatherData.temperature,
+            '正常' // 默认状态值
+        ]);
+        
+        console.log('天气数据已保存到数据库');
+    } catch (error) {
+        console.error('保存数据到数据库时出错:', error);
+        throw error; // 向上层抛出错误以便处理
+    }
+}
+
+/**
+ * 停止天气服务
+ */
+function stopWeatherService() {
+    if (weatherConfig.weatherTimer) {
+        clearInterval(weatherConfig.weatherTimer);
+        weatherConfig.weatherTimer = null;
+        console.log('天气服务已停止');
+    }
+}
+
+/**
+ * 根据天气状况估算太阳辐射值
+ * @param {string} weatherText - 天气描述文本
+ * @returns {number} 估算的太阳辐射值
+ */
+function estimateRadiationFromWeather(weatherText) {
+    if (!weatherText) return 0;
+    
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // 夜间没有太阳辐射
+    if (hour < 6 || hour >= 18) {
+        return 0;
+    }
+    
+    // 根据天气状况估算辐射值
+    let baseRadiation = 800; // 晴天基础辐射值
+    
+    if (weatherText.includes('暴雨') || weatherText.includes('大雨')) {
+        baseRadiation = 100; // 大雨/暴雨辐射极低
+    } else if (weatherText.includes('中雨')) {
+        baseRadiation = 200; // 中雨辐射很低
+    } else if (weatherText.includes('小雨')) {
+        baseRadiation = 300; // 小雨辐射低
+    } else if (weatherText.includes('阴')) {
+        baseRadiation = 400; // 阴天辐射中低
+    } else if (weatherText.includes('多云')) {
+        baseRadiation = 600; // 多云辐射中等
+    }
+    
+    // 根据时间调整辐射值，中午时分辐射最强
+    const timeAdjustment = 1 - Math.abs(hour - 12) / 6; // 12点为1，6点和18点为0
+    const radiation = Math.round(baseRadiation * timeAdjustment);
+    
+    return radiation;
+}
+
+/**
+ * 生成模拟的天气数据
  * @returns {Object} 模拟的天气数据
  */
 function generateSimulatedWeatherData() {
@@ -212,91 +325,53 @@ function generateSimulatedWeatherData() {
 }
 
 /**
- * 将天气数据保存到数据库
- * @param {Object} data 天气数据
- */
-async function saveWeatherToDatabase(data) {
-    try {
-        if (!pool) {
-            console.error('数据库连接池未初始化');
-            return;
-        }
-        
-        const query = `
-            INSERT INTO weather_data (city, temperature, weather, humidity, wind_direction, wind_scale, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        await pool.query(query, [
-            data.city,
-            data.temperature,
-            data.weather,
-            data.humidity,
-            data.windDirection,
-            data.windScale,
-            new Date(data.timestamp)
-        ]);
-        
-        console.log('天气数据已保存到数据库');
-    } catch (error) {
-        console.error('保存天气数据到数据库失败:', error);
-    }
-}
-
-/**
- * 启动定时任务，每小时获取一次天气数据
- * @returns {Object} 定时任务对象
- */
-function startWeatherUpdateJob() {
-    console.log('启动天气数据定时更新任务 - 每小时更新一次');
-    
-    // 立即获取一次天气数据
-    fetchWeatherData().catch(err => console.error('初始化天气数据获取失败:', err));
-    
-    // 设置定时任务，每小时执行一次（在每小时的第0分钟）
-    const job = schedule.scheduleJob('0 * * * *', async function() {
-        console.log('执行定时天气数据更新...');
-        try {
-            await fetchWeatherData();
-        } catch (err) {
-            console.error('定时获取天气数据失败:', err);
-        }
-    });
-    
-    return job;
-}
-
-/**
- * 根据天气状况和当前时间估算太阳辐射值
- * @param {string} weatherText 天气状况文本
- * @param {Date} currentTime 当前时间
- * @returns {number} 估算的太阳辐射值 (W/m²)
+ * 估算太阳辐射值
+ * @param {string} weatherText - 天气描述文本
+ * @param {Date} currentTime - 当前时间
+ * @returns {number} 估算的太阳辐射值
  */
 function getEstimatedRadiation(weatherText, currentTime) {
-    // 检查是否是夜间
     const hour = currentTime.getHours();
-    const isNighttime = hour < 6 || hour >= 18;
     
-    if (isNighttime) {
-        return 0; // 夜间无太阳辐射
+    // 夜间没有太阳辐射
+    if (hour < 6 || hour >= 18) {
+        return 0;
     }
     
-    // 根据天气状况估计辐射值
-    if (weatherText.includes('晴')) {
-        return 800 + Math.random() * 200; // 晴天 800-1000 W/m²
-    } else if (weatherText.includes('多云')) {
-        return 500 + Math.random() * 300; // 多云 500-800 W/m²
+    // 根据天气状况估算辐射值
+    let baseRadiation = 800; // 晴天基础辐射值
+    
+    if (weatherText.includes('暴雨') || weatherText.includes('大雨')) {
+        baseRadiation = 100; // 大雨/暴雨辐射极低
+    } else if (weatherText.includes('中雨')) {
+        baseRadiation = 200; // 中雨辐射很低
+    } else if (weatherText.includes('小雨')) {
+        baseRadiation = 300; // 小雨辐射低
     } else if (weatherText.includes('阴')) {
-        return 200 + Math.random() * 300; // 阴天 200-500 W/m²
-    } else if (weatherText.includes('雨') || weatherText.includes('雪')) {
-        return 100 + Math.random() * 100; // 雨雪天 100-200 W/m²
-    } else {
-        return 500 + Math.random() * 300; // 默认中等辐射值
+        baseRadiation = 400; // 阴天辐射中低
+    } else if (weatherText.includes('多云')) {
+        baseRadiation = 600; // 多云辐射中等
     }
+    
+    // 根据时间调整辐射值，中午时分辐射最强
+    const timeAdjustment = 1 - Math.abs(hour - 12) / 6; // 12点为1，6点和18点为0
+    const radiation = Math.round(baseRadiation * timeAdjustment);
+    
+    return radiation;
 }
 
+/**
+ * 获取最后一次成功获取的天气数据
+ * @returns {Object|null} 最后一次成功获取的天气数据，如果没有则返回null
+ */
+function getLastWeatherData() {
+    return weatherConfig.lastSuccessfulApiData;
+}
+
+// 导出函数
 module.exports = {
+    startWeatherService,
+    stopWeatherService,
     fetchWeatherData,
-    startWeatherUpdateJob,
-    generateSimulatedWeatherData
+    getLastWeatherData
 }; 

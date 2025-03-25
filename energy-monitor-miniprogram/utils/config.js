@@ -1,80 +1,110 @@
 /**
- * 小程序全局配置文件
+ * 配置文件
+ * 系统全局配置参数
  */
 
-// 服务器配置
+/**
+ * 服务器配置
+ */
 const serverConfig = {
-  // WebSocket服务器地址（本地开发环境）
-  wsUrl: 'ws://127.0.0.1:3000',
-  // HTTP服务器地址（本地开发环境）
-  apiUrl: 'http://127.0.0.1:3000',
+  // API基础地址
+  apiUrl: 'http://localhost:3001',
+  // WebSocket地址
+  socketUrl: 'ws://localhost:3001',
   // API路径
   apiPaths: {
+    home: '/api/home',
     history: '/api/history',
-    deviceInfo: '/api/device-info',
-    settings: '/api/settings'
-  }
-};
-
-// 主题配置
-const themeConfig = {
-  light: {
-    backgroundColor: '#f8f8f8',
-    textColor: '#333333',
-    cardBackground: '#ffffff',
-    primaryColor: '#4a90e2'
+    trend: '/api/trend',
+    device: '/api/device',
+    auth: '/api/auth',
+    deviceInfo: '/api/device/info'
   },
-  dark: {
-    backgroundColor: '#222222',
-    textColor: '#eeeeee',
-    cardBackground: '#333333',
-    primaryColor: '#4a90e2'
-  }
+  // 请求超时时间
+  timeout: 10000
 };
 
-// 应用设置默认值
-const defaultSettings = {
-  theme: 'light',
-  useMockData: true,  // 是否使用模拟数据（当WebSocket连接失败时）
-  notifications: {
-    alarm: true,
-    lowBattery: true,
-    weatherChange: false
-  },
-  dataRefresh: {
-    autoRefresh: true,
-    interval: 30 // 秒
-  }
+/**
+ * 应用配置
+ */
+const appConfig = {
+  // 应用名称
+  appName: '能源监控系统',
+  // 默认主题
+  defaultTheme: 'light',
+  // 自动刷新间隔（毫秒）
+  refreshInterval: 30000,
+  // 是否使用模拟数据（开发环境设为true）
+  useMockData: true,
+  // 数据缓存时间（毫秒）
+  cacheTime: 5 * 60 * 1000,
+  // 调试模式
+  debug: true
 };
 
-// 历史数据配置
-const historyConfig = {
-  defaultRange: 7, // 默认显示7天的数据
-  chartColors: {
-    battery: '#4a90e2',
-    solar: '#f39c12',
-    temperature: '#e74c3c'
-  }
+/**
+ * 图表配置
+ */
+const chartConfig = {
+  // 折线图颜色
+  lineColors: ['#1890ff', '#faad14', '#52c41a', '#722ed1', '#eb2f96'],
+  // 柱状图颜色
+  barColors: ['#36cfc9', '#ff7a45', '#597ef7', '#73d13d', '#ffc53d'],
+  // 饼图颜色
+  pieColors: ['#2f54eb', '#13c2c2', '#fa8c16', '#52c41a', '#f5222d', '#eb2f96']
 };
 
-// 天气图标映射
-const weatherIcons = {
-  '晴朗': 'sunny.png',
-  '晴': 'sunny.png',
-  '多云': 'cloudy.png',
-  '阴天': 'overcast.png',
-  '阴': 'overcast.png',
-  '小雨': 'light_rain.png',
-  '中雨': 'moderate_rain.png',
-  '大雨': 'heavy_rain.png',
-  '雷雨': 'thunder.png'
+/**
+ * 电池状态配置
+ */
+const batteryConfig = {
+  // 电池低电量阈值
+  lowThreshold: 20,
+  // 电池充电完成阈值
+  fullThreshold: 95,
+  // 温度警告阈值（摄氏度）
+  tempWarningThreshold: 40
 };
 
+/**
+ * 太阳能配置
+ */
+const solarConfig = {
+  // 太阳能最大功率
+  maxPower: 2000,
+  // 夜间启用时间
+  nightModeStartHour: 18,
+  // 白天启用时间
+  dayModeStartHour: 6
+};
+
+/**
+ * 天气配置
+ */
+const weatherConfig = {
+  // 天气图标前缀路径
+  iconBasePath: '/images/weather/',
+  // 支持的天气类型
+  supportedTypes: [
+    { name: '晴', icon: 'sunny.png' },
+    { name: '多云', icon: 'cloudy.png' },
+    { name: '阴', icon: 'overcast.png' },
+    { name: '小雨', icon: 'light_rain.png' },
+    { name: '中雨', icon: 'moderate_rain.png' },
+    { name: '大雨', icon: 'heavy_rain.png' },
+    { name: '雷阵雨', icon: 'thunder.png' },
+    { name: '雪', icon: 'snow.png' },
+    { name: '雾', icon: 'fog.png' },
+    { name: '霾', icon: 'haze.png' }
+  ]
+};
+
+// 导出配置
 module.exports = {
   serverConfig,
-  themeConfig,
-  defaultSettings,
-  historyConfig,
-  weatherIcons,
-  appVersion: '1.0.0'
+  appConfig,
+  chartConfig,
+  batteryConfig,
+  solarConfig,
+  weatherConfig
 }; 

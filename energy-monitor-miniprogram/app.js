@@ -7,7 +7,7 @@ const websocket = require('./utils/websocket');
 App({
   // 全局数据
   globalData: {
-    theme: config.defaultSettings.theme, // 默认主题
+    theme: config.appConfig.defaultTheme, // 默认主题
     userInfo: null,                     // 用户信息
     hasLogin: false,                    // 是否已登录
     socketConnected: false,             // WebSocket连接状态

@@ -248,52 +248,50 @@ const getAllHomePageData = async () => {
       solarData: solar,
       weatherData: weather,
       gridData: grid,
-      energyData: energy,
-      timestamp: new Date().getTime()
+      energyData: energy
     };
   } catch (error) {
-    throw new Error('获取数据失败: ' + error.message);
+    console.error('获取首页数据失败:', error);
+    throw error;
   }
 };
 
 /**
  * 获取设备信息
- * @returns {Promise} - 返回Promise对象
+ * @returns {Promise} - 设备信息
  */
 function getDeviceInfo() {
-  return get(config.serverConfig.apiPaths.deviceInfo);
+  return get('/api/device/info');
 }
 
 /**
- * 获取主页数据
- * @returns {Promise} - 返回Promise对象
+ * 获取首页数据
+ * @returns {Promise} - 首页数据
  */
 function getHomePage() {
-  return {
-    batteryStatus: {
-      voltage: 12.6,
-      capacity: 100,
-      temperature: 25,
-      current: 0.5,
-      status: '充电中'
-    },
-    solarPower: {
-      power: 150,
-      voltage: 18.5,
-      current: 8.1,
-      todayEnergy: 1.2,
-      temperature: 38
-    },
-    weather: {
-      temperature: 28,
-      humidity: '65%',
-      condition: '晴',
-      icon: '../../images/weather/sunny.png'
-    }
-  };
+  return get('/api/home');
 }
 
-// 导出API
+/**
+ * 模拟请求 - 开发测试专用
+ * 返回mock数据，不实际发起网络请求
+ * @param {string} api - API名称
+ * @param {Object} params - 请求参数
+ * @returns {Promise} - 模拟数据
+ */
+function mockRequest(api, params = {}) {
+  // 根据API名称返回对应的模拟数据
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve({
+        success: true,
+        data: {}
+      });
+    }, 500);
+  });
+}
+
+// 导出方法
 module.exports = {
   get,
   post,
@@ -311,5 +309,6 @@ module.exports = {
   controlDevice,
   getAllHomePageData,
   getDeviceInfo,
-  getHomePage
+  getHomePage,
+  mockRequest
 }; 

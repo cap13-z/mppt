@@ -1,5 +1,5 @@
 <!-- 首页 - 能源系统状态监控 -->
-<view class="container">
+<view class="container {{theme}}">
   <!-- 顶部状态栏 -->
   <view class="status-bar">
     <view class="status-item">

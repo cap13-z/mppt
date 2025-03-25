@@ -1,4 +1,24 @@
 <!-- 历史数据页面 -->
+<wxs module="formatter">
+// WXS模块用于处理数据格式化，减轻页面JS负担
+module.exports = {
+  getStatusClass: function(status) {
+    if (!status) return '';
+    
+    if (status.indexOf('充电') >= 0) {
+      return 'status-charging';
+    } else if (status.indexOf('放电') >= 0) {
+      return 'status-discharging';
+    } else if (status.indexOf('满') >= 0 || status.indexOf('100') >= 0) {
+      return 'status-full';
+    } else if (status.indexOf('错误') >= 0 || status.indexOf('故障') >= 0) {
+      return 'status-error';
+    }
+    return '';
+  }
+}
+</wxs>
+
 <view class="container {{theme}}">
   <!-- 标题栏 -->
   <view class="header">
@@ -33,101 +53,117 @@
   <!-- 历史数据表格 -->
   <view class="table-container">
     <!-- 电池历史数据 -->
-    <block wx:if="{{selectedTab === 'battery' && batteryData.length > 0}}">
+    <block wx:if="{{selectedTab === 'battery'}}">
       <view class="table-header">
         <view class="table-cell">时间</view>
         <view class="table-cell">电量 (%)</view>
         <view class="table-cell">电压 (V)</view>
         <view class="table-cell">状态</view>
       </view>
-      <scroll-view scroll-y class="table-body">
-        <view class="table-row" wx:for="{{batteryData}}" wx:key="timestamp">
-          <view class="table-cell">{{item.formattedTime}}</view>
-          <view class="table-cell">{{item.capacity}}</view>
-          <view class="table-cell">{{item.voltage}}</view>
-          <view class="table-cell">
-            <view class="status-tag {{item.statusClass}}">{{item.status}}</view>
+      <scroll-view scroll-y class="table-body" bindscrolltolower="onLoadMore" enable-flex="true">
+        <block wx:if="{{batteryData.length > 0}}">
+          <view wx:for="{{batteryData}}" wx:key="timestamp" class="table-row">
+            <view class="table-cell">{{item.formattedTime}}</view>
+            <view class="table-cell">{{item.capacity}}</view>
+            <view class="table-cell">{{item.voltage}}</view>
+            <view class="table-cell">
+              <view class="status-tag {{formatter.getStatusClass(item.status)}}">{{item.status}}</view>
+            </view>
           </view>
+        </block>
+        <view wx:else class="no-data">
+          <text>当前时间范围内无数据</text>
         </view>
       </scroll-view>
     </block>
     
     <!-- 太阳能历史数据 -->
-    <block wx:if="{{selectedTab === 'solar' && solarData.length > 0}}">
+    <block wx:elif="{{selectedTab === 'solar'}}">
       <view class="table-header">
         <view class="table-cell">时间</view>
         <view class="table-cell">功率 (W)</view>
         <view class="table-cell">效率 (%)</view>
         <view class="table-cell">电压 (V)</view>
       </view>
-      <scroll-view scroll-y class="table-body">
-        <view class="table-row" wx:for="{{solarData}}" wx:key="timestamp">
-          <view class="table-cell">{{item.formattedTime}}</view>
-          <view class="table-cell">{{item.power}}</view>
-          <view class="table-cell">{{item.efficiency}}</view>
-          <view class="table-cell">{{item.voltage}}</view>
+      <scroll-view scroll-y class="table-body" bindscrolltolower="onLoadMore" enable-flex="true">
+        <block wx:if="{{solarData.length > 0}}">
+          <view wx:for="{{solarData}}" wx:key="timestamp" class="table-row">
+            <view class="table-cell">{{item.formattedTime}}</view>
+            <view class="table-cell">{{item.power}}</view>
+            <view class="table-cell">{{item.efficiency}}</view>
+            <view class="table-cell">{{item.voltage}}</view>
+          </view>
+        </block>
+        <view wx:else class="no-data">
+          <text>当前时间范围内无数据</text>
         </view>
       </scroll-view>
     </block>
     
     <!-- 天气历史数据 -->
-    <block wx:if="{{selectedTab === 'weather' && weatherData.length > 0}}">
+    <block wx:elif="{{selectedTab === 'weather'}}">
       <view class="table-header">
         <view class="table-cell">时间</view>
         <view class="table-cell">温度 (°C)</view>
         <view class="table-cell">湿度 (%)</view>
         <view class="table-cell">天气</view>
       </view>
-      <scroll-view scroll-y class="table-body">
-        <view class="table-row" wx:for="{{weatherData}}" wx:key="timestamp">
-          <view class="table-cell">{{item.formattedTime}}</view>
-          <view class="table-cell">{{item.temperature}}</view>
-          <view class="table-cell">{{item.humidity}}</view>
-          <view class="table-cell">{{item.conditionName}}</view>
+      <scroll-view scroll-y class="table-body" bindscrolltolower="onLoadMore" enable-flex="true">
+        <block wx:if="{{weatherData.length > 0}}">
+          <view wx:for="{{weatherData}}" wx:key="timestamp" class="table-row">
+            <view class="table-cell">{{item.formattedTime}}</view>
+            <view class="table-cell">{{item.temperature}}</view>
+            <view class="table-cell">{{item.humidity}}</view>
+            <view class="table-cell">{{item.conditionName}}</view>
+          </view>
+        </block>
+        <view wx:else class="no-data">
+          <text>当前时间范围内无数据</text>
         </view>
       </scroll-view>
     </block>
     
     <!-- 电价历史数据 -->
-    <block wx:if="{{selectedTab === 'price' && priceData.length > 0}}">
+    <block wx:elif="{{selectedTab === 'price'}}">
       <view class="table-header">
         <view class="table-cell">时间</view>
         <view class="table-cell">电价 (元/kWh)</view>
         <view class="table-cell">价格级别</view>
       </view>
-      <scroll-view scroll-y class="table-body">
-        <view class="table-row" wx:for="{{priceData}}" wx:key="timestamp">
-          <view class="table-cell">{{item.formattedTime}}</view>
-          <view class="table-cell">{{item.price}}</view>
-          <view class="table-cell">{{item.levelName}}</view>
+      <scroll-view scroll-y class="table-body" bindscrolltolower="onLoadMore" enable-flex="true">
+        <block wx:if="{{priceData.length > 0}}">
+          <view wx:for="{{priceData}}" wx:key="timestamp" class="table-row">
+            <view class="table-cell">{{item.formattedTime}}</view>
+            <view class="table-cell">{{item.price}}</view>
+            <view class="table-cell">{{item.levelName}}</view>
+          </view>
+        </block>
+        <view wx:else class="no-data">
+          <text>当前时间范围内无数据</text>
         </view>
       </scroll-view>
     </block>
     
     <!-- 系统历史数据 -->
-    <block wx:if="{{selectedTab === 'system' && systemData.length > 0}}">
+    <block wx:elif="{{selectedTab === 'system'}}">
       <view class="table-header">
         <view class="table-cell">时间</view>
         <view class="table-cell">供电源</view>
         <view class="table-cell">负载功率 (W)</view>
       </view>
-      <scroll-view scroll-y class="table-body">
-        <view class="table-row" wx:for="{{systemData}}" wx:key="timestamp">
-          <view class="table-cell">{{item.formattedTime}}</view>
-          <view class="table-cell">{{item.source}}</view>
-          <view class="table-cell">{{item.load_power}}</view>
+      <scroll-view scroll-y class="table-body" bindscrolltolower="onLoadMore" enable-flex="true">
+        <block wx:if="{{systemData.length > 0}}">
+          <view wx:for="{{systemData}}" wx:key="timestamp" class="table-row">
+            <view class="table-cell">{{item.formattedTime}}</view>
+            <view class="table-cell">{{item.source}}</view>
+            <view class="table-cell">{{item.load_power}}</view>
+          </view>
+        </block>
+        <view wx:else class="no-data">
+          <text>当前时间范围内无数据</text>
         </view>
       </scroll-view>
     </block>
-    
-    <!-- 无数据提示 -->
-    <view class="no-data" wx:if="{{(selectedTab === 'battery' && batteryData.length === 0) || 
-                                   (selectedTab === 'solar' && solarData.length === 0) || 
-                                   (selectedTab === 'weather' && weatherData.length === 0) || 
-                                   (selectedTab === 'price' && priceData.length === 0) || 
-                                   (selectedTab === 'system' && systemData.length === 0)}}">
-      <text>当前时间范围内无数据</text>
-    </view>
   </view>
   
   <!-- 加载中提示 -->
@@ -139,5 +175,10 @@
   <view class="error-container" wx:if="{{hasError}}">
     <view class="error-text">{{errorMessage}}</view>
     <button class="retry-button" bindtap="retryLoad">重试</button>
+  </view>
+  
+  <!-- 加载更多提示 -->
+  <view class="loading-more" wx:if="{{isLoadingMore}}">
+    <text>加载更多...</text>
   </view>
 </view> 
