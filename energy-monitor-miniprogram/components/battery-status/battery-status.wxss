@@ -1,0 +1,73 @@
+/* 电池状态组件样式 */
+.battery-card {
+  margin-bottom: 20rpx;
+}
+
+.card-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20rpx 0;
+}
+
+.battery-info {
+  flex: 1;
+}
+
+.battery-capacity {
+  display: flex;
+  align-items: baseline;
+}
+
+.battery-voltage {
+  font-size: 24rpx;
+  color: var(--text-secondary);
+  margin-top: 10rpx;
+}
+
+.battery-graphic {
+  width: 60rpx;
+  height: 120rpx;
+  border: 3rpx solid var(--text-secondary);
+  border-radius: 6rpx;
+  position: relative;
+  margin-left: 20rpx;
+}
+
+.battery-graphic:before {
+  content: '';
+  position: absolute;
+  top: -10rpx;
+  left: 15rpx;
+  width: 30rpx;
+  height: 8rpx;
+  background-color: var(--text-secondary);
+  border-top-left-radius: 4rpx;
+  border-top-right-radius: 4rpx;
+}
+
+.battery-level {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: var(--primary-color);
+  transition: height 0.5s;
+}
+
+/* 低电量样式 */
+.battery-level.low {
+  background-color: var(--warning-color);
+}
+
+/* 充电中样式 */
+.battery-level.charging {
+  background-color: var(--success-color);
+}
+
+.update-time {
+  font-size: 22rpx;
+  color: var(--text-secondary);
+  margin-top: 10rpx;
+  text-align: right;
+} 

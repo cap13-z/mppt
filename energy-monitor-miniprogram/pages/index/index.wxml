@@ -1,0 +1,167 @@
+<!-- 首页 - 能源系统状态监控 -->
+<view class="container {{theme}}">
+  <!-- 顶部状态栏 -->
+  <view class="status-bar">
+    <view class="status-item">
+      <text class="status-label">系统状态</text>
+      <text class="status-value {{systemStatus === '正常' ? 'normal' : 'warning'}}">{{systemStatus}}</text>
+    </view>
+    <view class="status-item">
+      <text class="status-label">更新时间</text>
+      <text class="status-value">{{lastUpdateTime}}</text>
+    </view>
+  </view>
+
+  <!-- 能源系统卡片 -->
+  <view class="card-container">
+    <!-- 电池状态卡片 -->
+    <view class="card battery-card">
+      <view class="card-header">
+        <image class="card-icon" src="/images/battery.png"></image>
+        <text class="card-title">电池状态</text>
+      </view>
+      <view class="card-content">
+        <view class="battery-info">
+          <view class="battery-visual">
+            <view class="battery-level" style="width: {{batteryCapacity}}%;"></view>
+          </view>
+          <view class="battery-percentage">{{batteryCapacity}}%</view>
+        </view>
+        <view class="info-row">
+          <text class="info-label">当前状态</text>
+          <text class="info-value {{batteryStatus === '满电' ? 'normal' : (batteryStatus === '充电中' ? 'charging' : 'warning')}}">{{batteryStatus}}</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">电流</text>
+          <text class="info-value">{{batteryCurrent}}A</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">温度</text>
+          <text class="info-value {{batteryTemperature > 40 ? 'warning' : 'normal'}}">{{batteryTemperature}}°C</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">充放电趋势</text>
+          <text class="info-value {{batteryTrend === '上升' ? 'trend-up' : (batteryTrend === '下降' ? 'trend-down' : 'trend-stable')}}">{{batteryTrend}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 太阳能发电卡片 -->
+    <view class="card solar-card">
+      <view class="card-header">
+        <image class="card-icon" src="/images/solar.png"></image>
+        <text class="card-title">太阳能发电</text>
+      </view>
+      <view class="card-content">
+        <view class="solar-power">
+          <text class="power-value">{{solarPower}}</text>
+          <text class="power-unit">kW</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">今日发电量</text>
+          <text class="info-value">{{dailySolarGeneration}}kWh</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">发电效率</text>
+          <text class="info-value {{solarEfficiency > 15 ? 'normal' : 'warning'}}">{{solarEfficiency}}%</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">面板温度</text>
+          <text class="info-value {{panelTemperature > 60 ? 'warning' : 'normal'}}">{{panelTemperature}}°C</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 天气信息卡片 -->
+    <view class="card weather-card">
+      <view class="card-header">
+        <image class="card-icon" src="/images/weather.png"></image>
+        <text class="card-title">天气信息</text>
+      </view>
+      <view class="card-content">
+        <view class="weather-main">
+          <view class="weather-icon">
+            <!-- 这里可以根据天气类型显示不同图标 -->
+            <text class="weather-type">{{weatherType}}</text>
+          </view>
+          <view class="weather-temp">
+            <text class="temp-value">{{temperature}}</text>
+            <text class="temp-unit">°C</text>
+          </view>
+        </view>
+        <view class="info-row">
+          <text class="info-label">风速</text>
+          <text class="info-value">{{windSpeed}}m/s</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">湿度</text>
+          <text class="info-value">{{humidity}}%</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">日照强度</text>
+          <text class="info-value">{{solarRadiation}}W/m²</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 电网状态卡片 -->
+    <view class="card grid-card">
+      <view class="card-header">
+        <image class="card-icon" src="/images/grid.png"></image>
+        <text class="card-title">电网状态</text>
+      </view>
+      <view class="card-content">
+        <view class="grid-status">
+          <text class="status-indicator {{gridConnected ? 'connected' : 'disconnected'}}">{{gridConnected ? '已连接' : '未连接'}}</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">当前电价</text>
+          <text class="info-value">{{electricityPrice}}元/kWh</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">供电电压</text>
+          <text class="info-value {{gridVoltage < 220 || gridVoltage > 240 ? 'warning' : 'normal'}}">{{gridVoltage}}V</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">负载情况</text>
+          <text class="info-value">{{gridLoad}}kW</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 能源消耗卡片 -->
+    <view class="card energy-card">
+      <view class="card-header">
+        <image class="card-icon" src="/images/energy.png"></image>
+        <text class="card-title">能源消耗</text>
+      </view>
+      <view class="card-content">
+        <view class="energy-consumption">
+          <text class="consumption-value">{{energyConsumption}}</text>
+          <text class="consumption-unit">kWh</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">峰值功率</text>
+          <text class="info-value">{{peakPower}}kW</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">同比昨日</text>
+          <text class="info-value {{comparedToYesterday > 0 ? 'trend-up' : 'trend-down'}}">{{comparedToYesterday > 0 ? '+' : ''}}{{comparedToYesterday}}%</text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">预计费用</text>
+          <text class="info-value">¥{{estimatedCost}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部操作栏 -->
+  <view class="action-bar">
+    <button class="action-button refresh-button" bindtap="refreshData">刷新数据</button>
+    <button class="action-button share-button" open-type="share">
+      <image class="button-icon" src="/images/share.png"></image>
+      分享
+    </button>
+  </view>
+</view> 

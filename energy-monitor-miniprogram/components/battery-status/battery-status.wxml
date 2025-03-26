@@ -1,0 +1,21 @@
+<!-- 电池状态组件 -->
+<view class="battery-card card">
+  <view class="card-icon">
+    <image class="icon" src="/images/battery.png"></image>
+  </view>
+  <view class="card-title">电池状态</view>
+  <view class="card-content">
+    <view class="battery-info">
+      <view class="battery-capacity">
+        <view class="card-value">{{data.capacity || 0}}</view>
+        <view class="card-unit">%</view>
+      </view>
+      <view class="battery-voltage">电压: {{data.voltage || 0}}V</view>
+    </view>
+    <view class="battery-graphic">
+      <view class="battery-level" style="height:{{data.capacity || 0}}%"></view>
+    </view>
+  </view>
+  <view class="status-indicator {{data.statusClass}}">{{data.status || '未知'}}</view>
+  <view class="update-time">更新时间: {{data.formattedTime || '未知'}}</view>
+</view> 
