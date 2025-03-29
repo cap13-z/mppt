@@ -1,274 +1,337 @@
 /**
- * WebSocket连接管理器
+ * WebSocket连接模块
+ * 提供WebSocket连接管理和消息处理
  */
+
 const config = require('./config');
-const mock = require('./mock');
+const util = require('./util');
+
+// WebSocket连接实例
+let socketTask = null;
 
 // 连接状态
-let socketState = {
-  connected: false,
-  connecting: false,
-  socket: null,
-  reconnectTimer: null,
-  reconnectCount: 0,
-  maxReconnectAttempts: 5,
-  reconnectInterval: 3000, // 毫秒
-  messageHandlers: [],
-  mockDataTimer: null
+let isConnecting = false;
+let isConnected = false;
+
+// 重连计数和定时器
+let reconnectCount = 0;
+let reconnectTimer = null;
+const MAX_RECONNECT = 5;
+const RECONNECT_INTERVAL = 5000; // 5秒重连间隔
+
+// 消息处理器集合
+const messageHandlers = {
+  'message': [],
+  'open': [],
+  'close': [],
+  'error': []
 };
 
 /**
- * 创建WebSocket连接
+ * 连接WebSocket服务器
+ * @returns {Promise} 连接结果Promise
  */
-function connectSocket() {
-  // 如果已经连接或正在连接中，直接返回
-  if (socketState.connected || socketState.connecting) {
-    return;
-  }
+const connect = () => {
+  return new Promise((resolve, reject) => {
+    // 避免重复连接
+    if (isConnected || isConnecting) {
+      resolve({ connected: isConnected });
+      return;
+    }
+    
+    isConnecting = true;
+    
+    // 获取WebSocket服务器地址
+    const wsUrl = config.getWebSocketUrl();
+    
+    console.log('开始连接WebSocket:', wsUrl);
+    
+    try {
+      // 创建WebSocket连接
+      socketTask = wx.connectSocket({
+        url: wsUrl,
+        success: () => {
+          console.log('WebSocket连接创建成功');
+        },
+        fail: (err) => {
+          console.error('WebSocket连接创建失败:', err);
+          isConnecting = false;
+          reject(err);
+        }
+      });
+      
+      // 监听WebSocket连接打开事件
+      socketTask.onOpen(() => {
+        console.log('WebSocket连接已打开');
+        isConnected = true;
+        isConnecting = false;
+        reconnectCount = 0;
+        
+        // 调用open处理器
+        triggerHandlers('open', {});
+        
+        resolve({ connected: true });
+      });
+      
+      // 监听WebSocket接收到服务器的消息事件
+      socketTask.onMessage((res) => {
+        try {
+          // 解析消息
+          const message = JSON.parse(res.data);
+          console.log('收到WebSocket消息:', message);
+          
+          // 预处理消息数据，展开嵌套对象
+          if (message.data) {
+            // 如果存在battery对象，将其属性展开
+            if (message.data.battery && typeof message.data.battery === 'object') {
+              console.log('WebSocket: 展开battery对象');
+              Object.keys(message.data.battery).forEach(key => {
+                message.data[`battery${key.charAt(0).toUpperCase() + key.slice(1)}`] = message.data.battery[key];
+              });
+              delete message.data.battery;
+            }
+            
+            // 如果存在solar对象，将其属性展开
+            if (message.data.solar && typeof message.data.solar === 'object') {
+              console.log('WebSocket: 展开solar对象');
+              Object.keys(message.data.solar).forEach(key => {
+                message.data[`solar${key.charAt(0).toUpperCase() + key.slice(1)}`] = message.data.solar[key];
+              });
+              delete message.data.solar;
+            }
+          }
+          
+          // 调用message处理器
+          triggerHandlers('message', message);
+        } catch (error) {
+          console.error('解析WebSocket消息失败:', error, res.data);
+        }
+      });
+      
+      // 监听WebSocket错误事件
+      socketTask.onError((err) => {
+        console.error('WebSocket发生错误:', err);
+        
+        // 调用error处理器
+        triggerHandlers('error', err);
+        
+        // 尝试重连
+        handleReconnect(err);
+        
+        reject(err);
+      });
+      
+      // 监听WebSocket连接关闭事件
+      socketTask.onClose((res) => {
+        console.log('WebSocket连接已关闭:', res);
+        isConnected = false;
+        
+        // 调用close处理器
+        triggerHandlers('close', res);
+        
+        // 意外关闭时尝试重连
+        if (res.code !== 1000) {
+          handleReconnect();
+        }
+      });
+    } catch (error) {
+      console.error('创建WebSocket连接失败:', error);
+      isConnecting = false;
+      reject(error);
+    }
+  });
+};
 
-  socketState.connecting = true;
+/**
+ * 处理连接断开后的重连
+ * @param {Object} error 错误信息
+ */
+const handleReconnect = (error) => {
+  isConnected = false;
   
   // 清除可能存在的重连定时器
-  if (socketState.reconnectTimer) {
-    clearTimeout(socketState.reconnectTimer);
-    socketState.reconnectTimer = null;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
   }
-
-  console.log('正在连接WebSocket服务器:', config.serverConfig.wsUrl);
   
-  // 创建WebSocket连接
-  socketState.socket = wx.connectSocket({
-    url: config.serverConfig.wsUrl,
-    success: () => {
-      console.log('WebSocket连接请求已发送');
-    },
-    fail: (error) => {
-      console.error('WebSocket连接请求发送失败:', error);
-      handleSocketError();
-    }
-  });
-
-  // 监听WebSocket事件
-  socketState.socket.onOpen(handleSocketOpen);
-  socketState.socket.onClose(handleSocketClose);
-  socketState.socket.onError(handleSocketError);
-  socketState.socket.onMessage(handleSocketMessage);
-}
-
-/**
- * 处理WebSocket连接打开事件
- */
-function handleSocketOpen() {
-  console.log('WebSocket连接已建立');
-  socketState.connected = true;
-  socketState.connecting = false;
-  socketState.reconnectCount = 0;
-  
-  // 连接建立后，立即发送请求获取最新数据
-  sendSocketMessage({
-    type: 'subscribe',
-    topics: ['data-update'],
-    client: 'wxapp'
-  }).catch(error => {
-    console.error('发送订阅请求失败:', error);
-  });
-  
-  // 如果没有实时数据，启动模拟数据定时器
-  if (config.defaultSettings.useMockData) {
-    startMockDataTimer();
-  }
-}
-
-/**
- * 处理WebSocket连接关闭事件
- */
-function handleSocketClose() {
-  console.log('WebSocket连接已关闭');
-  socketState.connected = false;
-  socketState.connecting = false;
-  attemptReconnect();
-}
-
-/**
- * 处理WebSocket错误事件
- */
-function handleSocketError(error) {
-  console.error('WebSocket连接发生错误:', error);
-  socketState.connected = false;
-  socketState.connecting = false;
-  attemptReconnect();
-}
-
-/**
- * 尝试重新连接WebSocket
- */
-function attemptReconnect() {
-  // 如果已达到最大重连次数，不再尝试
-  if (socketState.reconnectCount >= socketState.maxReconnectAttempts) {
-    console.error('WebSocket连接失败: 已超过最大重连次数');
-    
-    // 如果配置允许使用模拟数据，则启动模拟数据定时器
-    if (config.defaultSettings.useMockData) {
-      startMockDataTimer();
-    }
+  // 超过最大重连次数，不再重连
+  if (reconnectCount >= MAX_RECONNECT) {
+    console.log('超过最大重连次数，停止重连');
     return;
   }
-
-  socketState.reconnectCount++;
   
-  console.log(`WebSocket将在${socketState.reconnectInterval/1000}秒后尝试第${socketState.reconnectCount}次重连`);
+  // 递增重连计数
+  reconnectCount++;
   
   // 设置重连定时器
-  socketState.reconnectTimer = setTimeout(() => {
-    connectSocket();
-  }, socketState.reconnectInterval);
-}
-
-/**
- * 处理接收到的WebSocket消息
- * @param {Object} result - 接收到的消息对象
- */
-function handleSocketMessage(result) {
-  try {
-    const message = JSON.parse(result.data);
-    console.log('收到WebSocket消息:', message);
-    
-    // 处理data-update类型的消息
-    if (message.type === 'data-update') {
-      // 调用所有注册的消息处理器，传入数据
-      notifyAllHandlers(message.data);
-    } else {
-      // 处理其他类型的消息
-      console.log('收到其他类型消息:', message.type);
-    }
-  } catch (error) {
-    console.error('处理WebSocket消息失败:', error);
-  }
-}
+  console.log(`${RECONNECT_INTERVAL / 1000}秒后尝试第${reconnectCount}次重连...`);
+  reconnectTimer = setTimeout(() => {
+    console.log(`开始第${reconnectCount}次重连...`);
+    connect().catch(err => {
+      console.error(`第${reconnectCount}次重连失败:`, err);
+    });
+  }, RECONNECT_INTERVAL);
+};
 
 /**
  * 发送WebSocket消息
- * @param {Object|string} data - 要发送的数据
- * @returns {Promise<boolean>} - 是否发送成功
+ * @param {string} type 消息类型
+ * @param {Object} data 消息数据
+ * @returns {Promise} 发送结果Promise
  */
-function sendSocketMessage(data) {
+const send = (type, data = {}) => {
   return new Promise((resolve, reject) => {
-    if (!socketState.connected) {
-      // 如果未连接，先尝试连接
-      connectSocket();
+    if (!isConnected || !socketTask) {
       reject(new Error('WebSocket未连接'));
       return;
     }
     
-    const message = typeof data === 'string' ? data : JSON.stringify(data);
-    
-    socketState.socket.send({
-      data: message,
-      success: () => {
-        console.log('WebSocket消息发送成功');
-        resolve(true);
-      },
-      fail: (error) => {
-        console.error('WebSocket消息发送失败:', error);
-        reject(error);
-      }
-    });
+    try {
+      // 构建消息对象
+      const message = {
+        type: type,
+        data: data,
+        timestamp: new Date().toISOString()
+      };
+      
+      // 发送消息
+      socketTask.send({
+        data: JSON.stringify(message),
+        success: () => {
+          console.log('消息发送成功:', type);
+          resolve({ success: true });
+        },
+        fail: (err) => {
+          console.error('消息发送失败:', err);
+          reject(err);
+        }
+      });
+    } catch (error) {
+      console.error('发送消息出错:', error);
+      reject(error);
+    }
   });
-}
+};
 
 /**
  * 关闭WebSocket连接
+ * @param {number} code 关闭代码
+ * @param {string} reason 关闭原因
+ * @returns {Promise} 关闭结果Promise
  */
-function closeSocket() {
-  if (socketState.socket && (socketState.connected || socketState.connecting)) {
-    socketState.socket.close({
-      success: () => {
-        console.log('WebSocket连接已手动关闭');
-      },
-      fail: (error) => {
-        console.error('关闭WebSocket连接失败:', error);
-      }
-    });
-  }
-  
-  // 清除重连定时器
-  if (socketState.reconnectTimer) {
-    clearTimeout(socketState.reconnectTimer);
-    socketState.reconnectTimer = null;
-  }
-  
-  // 清除模拟数据定时器
-  if (socketState.mockDataTimer) {
-    clearInterval(socketState.mockDataTimer);
-    socketState.mockDataTimer = null;
-  }
-  
-  // 重置状态
-  socketState.connected = false;
-  socketState.connecting = false;
-}
+const close = (code = 1000, reason = '用户关闭') => {
+  return new Promise((resolve, reject) => {
+    if (!socketTask) {
+      resolve({ closed: true });
+      return;
+    }
+    
+    try {
+      // 关闭连接
+      socketTask.close({
+        code: code,
+        reason: reason,
+        success: () => {
+          console.log('WebSocket连接已关闭');
+          isConnected = false;
+          socketTask = null;
+          resolve({ closed: true });
+        },
+        fail: (err) => {
+          console.error('关闭WebSocket连接失败:', err);
+          reject(err);
+        }
+      });
+    } catch (error) {
+      console.error('关闭WebSocket连接出错:', error);
+      reject(error);
+    }
+  });
+};
 
 /**
  * 注册消息处理器
- * @param {Function} handler - 处理接收到的消息的回调函数
+ * @param {string} type 消息类型
+ * @param {Function} handler 处理函数
  */
-function registerMessageHandler(handler) {
-  if (typeof handler === 'function' && !socketState.messageHandlers.includes(handler)) {
-    socketState.messageHandlers.push(handler);
+const registerHandler = (type, handler) => {
+  if (typeof handler !== 'function') {
+    console.error('处理器必须是函数');
+    return;
   }
-}
+  
+  if (!messageHandlers[type]) {
+    messageHandlers[type] = [];
+  }
+  
+  messageHandlers[type].push(handler);
+  console.log(`已注册[${type}]处理器`);
+};
 
 /**
  * 移除消息处理器
- * @param {Function} handler - 要移除的处理器函数
+ * @param {Function} handler 要移除的处理函数
  */
-function removeMessageHandler(handler) {
-  const index = socketState.messageHandlers.indexOf(handler);
-  if (index !== -1) {
-    socketState.messageHandlers.splice(index, 1);
+const removeHandler = (handler) => {
+  if (typeof handler !== 'function') {
+    console.error('处理器必须是函数');
+    return;
   }
-}
-
-/**
- * 通知所有已注册的消息处理器
- * @param {Object} data - 消息数据
- */
-function notifyAllHandlers(data) {
-  socketState.messageHandlers.forEach(handler => {
-    if (typeof handler === 'function') {
-      handler(data);
+  
+  // 遍历所有类型的处理器，移除匹配的
+  Object.keys(messageHandlers).forEach(type => {
+    const index = messageHandlers[type].indexOf(handler);
+    if (index !== -1) {
+      messageHandlers[type].splice(index, 1);
+      console.log(`已移除[${type}]处理器`);
     }
   });
-}
+};
 
 /**
- * 启动模拟数据定时器
- * 当WebSocket连接失败时使用
+ * 触发指定类型的所有处理器
+ * @param {string} type 消息类型
+ * @param {Object} data 消息数据
  */
-function startMockDataTimer() {
-  // 如果已有定时器，先清除
-  if (socketState.mockDataTimer) {
-    clearInterval(socketState.mockDataTimer);
+const triggerHandlers = (type, data) => {
+  if (!messageHandlers[type] || messageHandlers[type].length === 0) {
+    return;
   }
   
-  console.log('启动模拟数据定时器');
-  
-  // 立即发送一次模拟数据
-  const mockData = mock.getRealTimeData();
-  notifyAllHandlers(mockData);
-  
-  // 每10秒发送一次模拟数据
-  socketState.mockDataTimer = setInterval(() => {
-    const mockData = mock.getRealTimeData();
-    notifyAllHandlers(mockData);
-  }, 10000);  // 10秒更新一次，与前端保持一致
-}
+  // 调用所有该类型的处理器
+  messageHandlers[type].forEach(handler => {
+    try {
+      handler(data);
+    } catch (error) {
+      console.error(`执行[${type}]处理器出错:`, error);
+    }
+  });
+};
 
-// 导出API
+/**
+ * 获取WebSocket连接状态
+ * @returns {boolean} 是否已连接
+ */
+const getConnectionStatus = () => {
+  return { 
+    connected: isConnected,
+    connecting: isConnecting,
+    reconnectCount: reconnectCount
+  };
+};
+
+// 导出模块方法
 module.exports = {
-  connect: connectSocket,
-  send: sendSocketMessage,
-  close: closeSocket,
-  registerHandler: registerMessageHandler,
-  removeHandler: removeMessageHandler
+  connect,
+  send,
+  close,
+  registerHandler,
+  removeHandler,
+  getConnectionStatus,
+  
+  // 便于调试
+  get isConnected() {
+    return isConnected;
+  }
 }; 

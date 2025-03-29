@@ -1,1 +1,9 @@
- 
+# 编码问题案例
+
+此处应放置一张编码问题的截图，展示以下内容：
+
+1. 错误信息：`Unknown word > B | .header | > 9 | padding: 20rpx 30px... > 10 | border-bottom: 1rpx...`
+2. 使用`Get-Content -Encoding Byte`命令检测文件编码时显示的`255 254`开头的BOM标记
+3. 创建无BOM的UTF-8编码文件过程
+
+请使用微信开发者工具的截图，或者PowerShell命令行的截图来展示此问题。 

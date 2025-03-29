@@ -279,35 +279,33 @@
 
 /* 底部操作栏样式 */
 .action-bar {
+  padding: 30rpx;
   display: flex;
-  justify-content: space-between;
-  margin-top: 20rpx;
-  padding: 10rpx 0;
+  justify-content: space-around;
 }
 
 .action-button {
-  flex: 1;
-  height: 80rpx;
+  padding: 20rpx 30rpx;
+  border-radius: 10rpx;
   display: flex;
-  justify-content: center;
   align-items: center;
-  font-size: 28rpx;
-  border-radius: 40rpx;
+  justify-content: center;
   margin: 0 10rpx;
-  padding: 0;
-  color: #ffffff;
-  line-height: 80rpx;
 }
 
 .refresh-button {
-  background-color: #1e3163;
+  background-color: #4a90e2;
+  color: #fff;
+}
+
+.test-button {
+  background-color: #f5a623;
+  color: #fff;
 }
 
 .share-button {
-  background-color: #5856d6;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  background-color: #2ecc71;
+  color: #fff;
 }
 
 .button-icon {

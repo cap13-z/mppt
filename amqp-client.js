@@ -56,10 +56,11 @@ async function saveToDatabase(data) {
                 // 处理电压数据
                 if (data.params.vot !== undefined) {
                     await conn.query(
-                        'INSERT INTO battery_data (voltage, capacity, temperature, timestamp) VALUES (?, ?, ?, NOW())',
+                        'INSERT INTO battery_data (voltage, capacity, temperature, status, timestamp) VALUES (?, ?, ?, ?, NOW())',
                         [data.params.vot, 
                          calculateBatteryCapacity(data.params.vot), // 根据电压估算电池容量
-                         data.params.tem || 25 // 如果有温度数据则使用，否则默认25度
+                         data.params.tem || 25, // 如果有温度数据则使用，否则默认25度
+                         '正常' // 添加默认状态
                         ] 
                     );
                 }
@@ -102,10 +103,12 @@ async function saveToDatabase(data) {
             // 保存电池状态数据
             if (data.battery) {
                 await conn.query(
-                    'INSERT INTO battery_data (voltage, capacity, temperature, timestamp) VALUES (?, ?, ?, NOW())',
+                    'INSERT INTO battery_data (voltage, capacity, temperature, status, timestamp) VALUES (?, ?, ?, ?, NOW())',
                     [data.battery.voltage, 
                      data.battery.capacity,
-                     data.battery.temperature]
+                     data.battery.temperature,
+                     data.battery.status || '正常' // 添加status字段，如果不存在则默认为"正常"
+                    ]
                 );
             }
             

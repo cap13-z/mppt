@@ -1,314 +1,256 @@
 /**
- * API接口封装
- * 用于与后端服务进行通信
+ * API请求模块
+ * 提供与后端服务器的通信功能
  */
+
 const config = require('./config');
-
-// API基础地址
-const BASE_URL = config.serverConfig.apiUrl;
-
-// 请求超时时间（毫秒）
-const TIMEOUT = 10000;
-
-/**
- * API工具模块 - 处理网络请求
- */
-const baseOptions = {
-  timeout: TIMEOUT, // 10秒超时
-  header: {
-    'content-type': 'application/json'
-  }
-};
 
 /**
  * 发送GET请求
- * @param {string} url - 请求路径
- * @param {Object} data - 请求参数
- * @returns {Promise} - 返回Promise对象
+ * @param {string} url 请求地址
+ * @param {Object} data 请求参数
+ * @returns {Promise} Promise对象
  */
-function get(url, data = {}) {
-  return request('GET', url, data);
-}
+const get = (url, data = {}) => {
+  return request(url, 'GET', data);
+};
 
 /**
  * 发送POST请求
- * @param {string} url - 请求路径
- * @param {Object} data - 请求参数
- * @returns {Promise} - 返回Promise对象
+ * @param {string} url 请求地址
+ * @param {Object} data 请求数据
+ * @returns {Promise} Promise对象
  */
-function post(url, data = {}) {
-  return request('POST', url, data);
-}
+const post = (url, data = {}) => {
+  return request(url, 'POST', data);
+};
+
+/**
+ * 发送PUT请求
+ * @param {string} url 请求地址
+ * @param {Object} data 请求数据
+ * @returns {Promise} Promise对象
+ */
+const put = (url, data = {}) => {
+  return request(url, 'PUT', data);
+};
+
+/**
+ * 发送DELETE请求
+ * @param {string} url 请求地址
+ * @param {Object} data 请求参数
+ * @returns {Promise} Promise对象
+ */
+const del = (url, data = {}) => {
+  return request(url, 'DELETE', data);
+};
 
 /**
  * 通用请求方法
- * @param {string} method - 请求方法
- * @param {string} url - 请求路径
- * @param {Object} data - 请求参数
- * @returns {Promise} - 返回Promise对象
+ * @param {string} url 请求地址
+ * @param {string} method 请求方法
+ * @param {Object} data 请求数据
+ * @returns {Promise} Promise对象
  */
-function request(method, url, data = {}) {
-  // 如果url不是完整的HTTP URL，添加baseUrl
-  if (!url.startsWith('http')) {
-    url = BASE_URL + url;
-  }
-  
-  // 请求配置
-  const options = {
-    ...baseOptions,
-    method: method,
-    url: url,
-    data: data
-  };
-  
-  // 返回Promise对象
+const request = (url, method, data) => {
   return new Promise((resolve, reject) => {
-    // 获取存储的token
-    const token = wx.getStorageSync('token') || '';
+    // 添加基础URL
+    if (!url.startsWith('http')) {
+      url = config.getApiBaseUrl() + url;
+    }
     
-    // 开始加载指示器
-    wx.showLoading({
-      title: '加载中...',
-      mask: true
-    });
-    
-    options.header = {
-      ...options.header,
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
-    
-    options.success = res => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        resolve(res.data);
-      } else if (res.statusCode === 401) {
-        // 未授权，清除token并重定向到登录页
-        wx.removeStorageSync('token');
-        wx.showToast({
-          title: '登录状态已过期',
-          icon: 'none',
-          duration: 1500
-        });
-        setTimeout(() => {
-          wx.navigateTo({
-            url: '/pages/login/login'
+    // 请求配置
+    const options = {
+      url: url,
+      method: method,
+      data: data,
+      header: {
+        'content-type': 'application/json'
+      },
+      timeout: 10000, // 10秒超时
+      success: (res) => {
+        // 约定：服务端返回的数据结构为 { code, data, message }
+        if (res.statusCode === 200) {
+          if (res.data && res.data.code === 0) {
+            // 处理API返回的数据，展开嵌套对象
+            let apiData = res.data.data;
+            
+            // 如果数据是对象，处理可能的嵌套结构
+            if (apiData && typeof apiData === 'object') {
+              // 处理battery对象
+              if (apiData.battery && typeof apiData.battery === 'object') {
+                console.log('API: 展开battery对象');
+                Object.keys(apiData.battery).forEach(key => {
+                  apiData[`battery${key.charAt(0).toUpperCase() + key.slice(1)}`] = apiData.battery[key];
+                });
+                delete apiData.battery;
+              }
+              
+              // 处理solar对象
+              if (apiData.solar && typeof apiData.solar === 'object') {
+                console.log('API: 展开solar对象');
+                Object.keys(apiData.solar).forEach(key => {
+                  apiData[`solar${key.charAt(0).toUpperCase() + key.slice(1)}`] = apiData.solar[key];
+                });
+                delete apiData.solar;
+              }
+            }
+            
+            resolve(apiData);
+          } else {
+            // 业务逻辑错误
+            console.error(`API请求业务错误: ${url}`, res.data);
+            reject({
+              type: 'business',
+              code: res.data ? res.data.code : -1,
+              message: res.data ? res.data.message : '未知业务错误',
+              data: res.data
+            });
+          }
+        } else {
+          // HTTP错误
+          console.error(`API请求HTTP错误: ${url}`, res);
+          reject({
+            type: 'http',
+            code: res.statusCode,
+            message: `HTTP请求错误: ${res.statusCode}`,
+            data: res.data
           });
-        }, 1500);
-        reject(new Error('登录状态已过期'));
-      } else {
+        }
+      },
+      fail: (err) => {
+        // 网络错误、超时等
+        console.error(`API请求失败: ${url}`, err);
         reject({
-          code: res.statusCode,
-          message: res.data.message || '请求失败',
-          data: res.data
+          type: 'request',
+          code: -1,
+          message: err.errMsg || '网络请求失败',
+          error: err
         });
       }
     };
     
-    options.fail = err => {
-      reject({
-        code: -1,
-        message: err.errMsg || '网络请求失败',
-        error: err
-      });
-    };
-    
-    options.complete = () => {
-      wx.hideLoading();
-    };
-    
+    // 发送请求
     wx.request(options);
   });
-}
-
-// API方法
-
-/**
- * 获取系统状态数据
- * @returns {Promise} - 系统状态数据
- */
-const getSystemStatus = () => {
-  return get('/api/system/status');
 };
 
 /**
- * 获取电池状态数据
- * @returns {Promise} - 电池状态数据
+ * 获取系统信息
+ * @returns {Promise} Promise对象
+ */
+const getSystemInfo = () => {
+  return get('/system/info');
+};
+
+/**
+ * 获取实时状态数据
+ * @returns {Promise} Promise对象
+ */
+const getStatus = () => {
+  return get('/status');
+};
+
+/**
+ * 获取电池状态
+ * @returns {Promise} Promise对象
  */
 const getBatteryStatus = () => {
-  return get('/api/battery/status');
+  return get('/battery/status');
 };
 
 /**
- * 获取太阳能发电数据
- * @returns {Promise} - 太阳能发电数据
+ * 获取太阳能状态
+ * @returns {Promise} Promise对象
  */
-const getSolarData = () => {
-  return get('/api/solar/status');
+const getSolarStatus = () => {
+  return get('/solar/status');
 };
 
 /**
- * 获取天气数据
- * @returns {Promise} - 天气数据
+ * 获取天气信息
+ * @returns {Promise} Promise对象
  */
-const getWeatherData = () => {
-  return get('/api/weather/current');
+const getWeather = () => {
+  return get('/weather');
 };
 
 /**
- * 获取电网状态数据
- * @returns {Promise} - 电网状态数据
+ * 获取电价信息
+ * @returns {Promise} Promise对象
  */
-const getGridStatus = () => {
-  return get('/api/grid/status');
-};
-
-/**
- * 获取能源消耗数据
- * @returns {Promise} - 能源消耗数据
- */
-const getEnergyConsumption = () => {
-  return get('/api/energy/consumption');
+const getPrice = () => {
+  return get('/price');
 };
 
 /**
  * 获取历史数据
- * @param {number} days - 天数
- * @returns {Promise} - 返回Promise对象
+ * @param {string} type 数据类型
+ * @param {string} startDate 开始日期
+ * @param {string} endDate 结束日期
+ * @param {number} page 页码
+ * @param {number} pageSize 每页数量
+ * @returns {Promise} Promise对象
  */
-function getHistoryData(days = 7) {
-  return get(config.serverConfig.apiPaths.history, { days });
-}
+const getHistory = (type, startDate, endDate, page = 1, pageSize = 20) => {
+  return get('/history', {
+    type,
+    startDate,
+    endDate,
+    page,
+    pageSize
+  });
+};
 
 /**
  * 获取趋势数据
- * @param {string} type - 数据类型
- * @param {string} period - 周期 (day, week, month)
- * @returns {Promise} - 趋势数据
+ * @param {string} type 数据类型
+ * @param {string} period 时间周期
+ * @returns {Promise} Promise对象
  */
-const getTrendData = (type, period) => {
-  return get(`/api/trends/${type}?period=${period}`);
-};
-
-/**
- * 用户登录
- * @param {string} username - 用户名
- * @param {string} password - 密码
- * @returns {Promise} - 登录结果
- */
-const login = (username, password) => {
-  return post('/api/auth/login', { username, password });
-};
-
-/**
- * 用户注册
- * @param {Object} userData - 用户数据
- * @returns {Promise} - 注册结果
- */
-const register = (userData) => {
-  return post('/api/auth/register', userData);
-};
-
-/**
- * 修改用户信息
- * @param {Object} userData - 用户数据
- * @returns {Promise} - 修改结果
- */
-const updateUserInfo = (userData) => {
-  return post('/api/user/update', userData);
+const getTrend = (type, period) => {
+  return get('/trend', {
+    type,
+    period
+  });
 };
 
 /**
  * 控制设备
- * @param {string} deviceId - 设备ID
- * @param {string} action - 动作
- * @param {Object} params - 参数
- * @returns {Promise} - 控制结果
+ * @param {string} action 操作类型
+ * @param {Object} params 操作参数
+ * @returns {Promise} Promise对象
  */
-const controlDevice = (deviceId, action, params) => {
-  return post(`/api/device/${deviceId}/control`, { action, ...params });
-};
-
-/**
- * 一次性获取所有首页需要的数据
- * @returns {Promise} - 包含所有数据的对象
- */
-const getAllHomePageData = async () => {
-  try {
-    const [system, battery, solar, weather, grid, energy] = await Promise.all([
-      getSystemStatus(),
-      getBatteryStatus(),
-      getSolarData(),
-      getWeatherData(),
-      getGridStatus(),
-      getEnergyConsumption()
-    ]);
-    
-    return {
-      systemStatus: system,
-      batteryData: battery,
-      solarData: solar,
-      weatherData: weather,
-      gridData: grid,
-      energyData: energy
-    };
-  } catch (error) {
-    console.error('获取首页数据失败:', error);
-    throw error;
-  }
-};
-
-/**
- * 获取设备信息
- * @returns {Promise} - 设备信息
- */
-function getDeviceInfo() {
-  return get('/api/device/info');
-}
-
-/**
- * 获取首页数据
- * @returns {Promise} - 首页数据
- */
-function getHomePage() {
-  return get('/api/home');
-}
-
-/**
- * 模拟请求 - 开发测试专用
- * 返回mock数据，不实际发起网络请求
- * @param {string} api - API名称
- * @param {Object} params - 请求参数
- * @returns {Promise} - 模拟数据
- */
-function mockRequest(api, params = {}) {
-  // 根据API名称返回对应的模拟数据
-  return new Promise(resolve => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        data: {}
-      });
-    }, 500);
+const controlDevice = (action, params = {}) => {
+  return post('/control', {
+    action,
+    ...params
   });
-}
+};
 
-// 导出方法
+/**
+ * 设置系统参数
+ * @param {Object} settings 设置参数
+ * @returns {Promise} Promise对象
+ */
+const setSettings = (settings) => {
+  return post('/settings', settings);
+};
+
 module.exports = {
   get,
   post,
-  getSystemStatus,
+  put,
+  delete: del,
+  request,
+  getSystemInfo,
+  getStatus,
   getBatteryStatus,
-  getSolarData,
-  getWeatherData,
-  getGridStatus,
-  getEnergyConsumption,
-  getHistoryData,
-  getTrendData,
-  login,
-  register,
-  updateUserInfo,
+  getSolarStatus,
+  getWeather,
+  getPrice,
+  getHistory,
+  getTrend,
   controlDevice,
-  getAllHomePageData,
-  getDeviceInfo,
-  getHomePage,
-  mockRequest
+  setSettings
 }; 

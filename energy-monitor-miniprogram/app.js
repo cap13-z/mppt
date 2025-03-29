@@ -2,131 +2,104 @@
  * 能源监控小程序 - 入口文件
  */
 const config = require('./utils/config');
+const util = require('./utils/util');
 const websocket = require('./utils/websocket');
 
 App({
   // 全局数据
   globalData: {
-    theme: config.appConfig.defaultTheme, // 默认主题
-    userInfo: null,                     // 用户信息
-    hasLogin: false,                    // 是否已登录
-    socketConnected: false,             // WebSocket连接状态
-    batteryData: null,                  // 电池数据
-    solarData: null,                    // 太阳能数据
-    weatherData: null,                  // 天气数据
-    gridData: null,                     // 电网数据
-    lastUpdateTime: null                // 最后更新时间
+    userInfo: null,
+    theme: 'dark',
+    connected: false
   },
-  
+
   /**
    * 小程序启动时执行
    */
   onLaunch: function() {
     console.log('小程序启动');
     
-    // 从本地存储加载用户设置
-    this.loadUserSettings();
+    // 获取本地存储的主题设置
+    const theme = wx.getStorageSync('theme');
+    if (theme) {
+      this.globalData.theme = theme;
+    } else {
+      // 使用默认主题
+      this.globalData.theme = config.appConfig.defaultTheme;
+      wx.setStorageSync('theme', this.globalData.theme);
+    }
     
-    // 连接WebSocket
-    this.connectWebSocket();
+    // 初始化WebSocket连接
+    this.initWebSocket();
+    
+    // 检查更新
+    this.checkUpdate();
   },
   
   /**
-   * WebSocket连接
+   * 初始化WebSocket连接
    */
-  connectWebSocket: function() {
-    console.log('正在连接WebSocket...');
-    
-    // 连接WebSocket
-    websocket.connect();
-    
-    // 注册全局数据更新处理器
-    websocket.registerHandler(this.handleWebSocketMessage);
-    
-    // 设置连接状态
-    this.globalData.socketConnected = true;
-  },
-  
-  /**
-   * 处理WebSocket消息
-   * @param {Object} data - 收到的数据
-   */
-  handleWebSocketMessage: function(data) {
-    console.log('App收到WebSocket消息:', data);
-    
-    // 更新全局数据
-    if (data.battery) {
-      this.globalData.batteryData = data.battery;
-    }
-    
-    if (data.solar) {
-      this.globalData.solarData = data.solar;
-    }
-    
-    if (data.weather) {
-      this.globalData.weatherData = data.weather;
-    }
-    
-    if (data.grid) {
-      this.globalData.gridData = data.grid;
-    }
-    
-    // 更新最后更新时间
-    this.globalData.lastUpdateTime = new Date();
-  },
-  
-  /**
-   * 从本地存储加载用户设置
-   */
-  loadUserSettings: function() {
+  initWebSocket: function() {
     try {
-      // 加载主题设置
-      const theme = wx.getStorageSync('theme');
-      if (theme) {
-        this.globalData.theme = theme;
-      }
-      
-      // 加载用户信息
-      const userInfo = wx.getStorageSync('userInfo');
-      if (userInfo) {
-        this.globalData.userInfo = userInfo;
-        this.globalData.hasLogin = true;
-      }
+      // 连接WebSocket
+      websocket.connect()
+        .then(() => {
+          console.log('全局WebSocket连接成功');
+          this.globalData.connected = true;
+        })
+        .catch(error => {
+          console.error('全局WebSocket连接失败:', error);
+        });
     } catch (error) {
-      console.error('加载用户设置失败:', error);
+      console.error('初始化WebSocket错误:', error);
     }
   },
   
   /**
-   * 设置主题
-   * @param {string} theme - 主题名称
+   * 检查小程序更新
    */
-  setTheme: function(theme) {
+  checkUpdate: function() {
+    if (wx.canIUse('getUpdateManager')) {
+      const updateManager = wx.getUpdateManager();
+      
+      updateManager.onCheckForUpdate(function(res) {
+        if (res.hasUpdate) {
+          console.log('有新版本可用');
+        }
+      });
+      
+      updateManager.onUpdateReady(function() {
+        wx.showModal({
+          title: '更新提示',
+          content: '新版本已准备好，是否重启应用？',
+          success: function(res) {
+            if (res.confirm) {
+              updateManager.applyUpdate();
+            }
+          }
+        });
+      });
+      
+      updateManager.onUpdateFailed(function() {
+        console.log('新版本下载失败');
+      });
+    }
+  },
+  
+  /**
+   * 切换主题
+   * @param {string} theme 主题名称 ('light' 或 'dark')
+   */
+  switchTheme: function(theme) {
     this.globalData.theme = theme;
     wx.setStorageSync('theme', theme);
   },
   
   /**
-   * 小程序显示时执行
+   * 获取当前主题设置
+   * @returns {string} 当前主题
    */
-  onShow: function() {
-    // 如果WebSocket连接已断开，重新连接
-    if (!this.globalData.socketConnected) {
-      this.connectWebSocket();
-    }
-  },
-  
-  /**
-   * 小程序隐藏时执行
-   */
-  onHide: function() {
-    // 小程序隐藏时，不主动断开WebSocket连接，保持接收数据
-  },
-  
-  /**
-   * 发生错误时执行
-   */
-  onError: function(error) {
-    console.error('小程序发生错误:', error);
+  getTheme: function() {
+    return this.globalData.theme;
   }
 }); 

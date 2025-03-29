@@ -8,7 +8,7 @@
     </view>
     <view class="status-item">
       <text class="status-label">更新时间</text>
-      <text class="status-value">{{lastUpdateTime}}</text>
+      <text class="status-value">{{updateTime}}</text>
     </view>
   </view>
 
@@ -29,7 +29,7 @@
         </view>
         <view class="info-row">
           <text class="info-label">当前状态</text>
-          <text class="info-value {{batteryStatus === '满电' ? 'normal' : (batteryStatus === '充电中' ? 'charging' : 'warning')}}">{{batteryStatus}}</text>
+          <text class="info-value {{batteryStatus === '满电状态' ? 'normal' : (batteryStatus === '充电中' ? 'charging' : 'warning')}}">{{batteryStatus || '未知'}}</text>
         </view>
         <view class="info-row">
           <text class="info-label">电流</text>
@@ -41,7 +41,7 @@
         </view>
         <view class="info-row">
           <text class="info-label">充放电趋势</text>
-          <text class="info-value {{batteryTrend === '上升' ? 'trend-up' : (batteryTrend === '下降' ? 'trend-down' : 'trend-stable')}}">{{batteryTrend}}</text>
+          <text class="info-value">{{chargingStatus || '稳定'}}</text>
         </view>
       </view>
     </view>
@@ -97,10 +97,6 @@
           <text class="info-label">湿度</text>
           <text class="info-value">{{humidity}}%</text>
         </view>
-        <view class="info-row">
-          <text class="info-label">日照强度</text>
-          <text class="info-value">{{solarRadiation}}W/m²</text>
-        </view>
       </view>
     </view>
 
@@ -129,39 +125,9 @@
       </view>
     </view>
 
-    <!-- 能源消耗卡片 -->
-    <view class="card energy-card">
-      <view class="card-header">
-        <image class="card-icon" src="/images/energy.png"></image>
-        <text class="card-title">能源消耗</text>
-      </view>
-      <view class="card-content">
-        <view class="energy-consumption">
-          <text class="consumption-value">{{energyConsumption}}</text>
-          <text class="consumption-unit">kWh</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">峰值功率</text>
-          <text class="info-value">{{peakPower}}kW</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">同比昨日</text>
-          <text class="info-value {{comparedToYesterday > 0 ? 'trend-up' : 'trend-down'}}">{{comparedToYesterday > 0 ? '+' : ''}}{{comparedToYesterday}}%</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">预计费用</text>
-          <text class="info-value">¥{{estimatedCost}}</text>
-        </view>
-      </view>
+    <!-- 测试数据按钮 -->
+    <view class="test-btn-container">
+      <button class="test-btn" bindtap="testLoadMockData">加载测试数据</button>
     </view>
-  </view>
-
-  <!-- 底部操作栏 -->
-  <view class="action-bar">
-    <button class="action-button refresh-button" bindtap="refreshData">刷新数据</button>
-    <button class="action-button share-button" open-type="share">
-      <image class="button-icon" src="/images/share.png"></image>
-      分享
-    </button>
   </view>
 </view> 

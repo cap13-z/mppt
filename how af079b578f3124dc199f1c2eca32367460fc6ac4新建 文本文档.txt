@@ -1,0 +1,197 @@
+[33mcommit fb1e8ca91273ec3be4bb773c49b206762e515ab1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: 您的用户名 <您的邮箱>
+Date:   Wed Mar 26 19:38:52 2025 +0800
+
+    删除包含敏感信息的文件
+
+D	"\346\226\260\345\273\272 \346\226\207\346\234\254\346\226\207\346\241\243.txt"
+
+[33mcommit af079b578f3124dc199f1c2eca32367460fc6ac4[m
+Author: 您的用户名 <您的邮箱>
+Date:   Tue Mar 25 20:40:38 2025 +0800
+
+    添加小程序编译错误修复经验总结
+
+M	README.md
+M	amqp-client.js
+M	app.js
+M	energy-monitor-miniprogram/app.js
+M	energy-monitor-miniprogram/app.json
+M	energy-monitor-miniprogram/pages/history/history.js
+M	energy-monitor-miniprogram/pages/history/history.wxml
+M	energy-monitor-miniprogram/pages/history/history.wxss
+M	energy-monitor-miniprogram/pages/index/index.js
+M	energy-monitor-miniprogram/pages/index/index.wxml
+M	energy-monitor-miniprogram/pages/trends/trends.wxss
+M	energy-monitor-miniprogram/services/api-service.js
+M	energy-monitor-miniprogram/utils/api.js
+M	energy-monitor-miniprogram/utils/config.js
+M	energy-monitor-miniprogram/utils/mock.js
+A	"energy-monitor-miniprogram/\346\200\273\347\273\223/\345\260\217\347\250\213\345\272\217\347\274\226\350\257\221\351\224\231\350\257\257\344\277\256\345\244\215\346\200\273\347\273\223.md"
+A	"energy-monitor-miniprogram/\346\200\273\347\273\223/\347\274\226\347\240\201\351\227\256\351\242\230\347\244\272\344\276\213.png"
+M	public/index.html
+M	weather-service.js
+A	"\346\226\260\345\273\272 \346\226\207\346\234\254\346\226\207\346\241\243.txt"
+
+[33mcommit 9ea30492af573d039cc47c50808e34559557a5ac[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: 您的用户名 <您的邮箱>
+Date:   Sat Mar 22 14:11:26 2025 +0800
+
+    统一微信小程序和前端网页的数据格式，确保两者数据互通: 1.修改mock.js数据结构 2.更新WebSocket连接逻辑 3.优化首页数据处理 4.增加模拟数据开关
+
+M	energy-monitor-miniprogram/pages/index/index.js
+M	energy-monitor-miniprogram/utils/config.js
+M	energy-monitor-miniprogram/utils/mock.js
+M	energy-monitor-miniprogram/utils/websocket.js
+
+[33mcommit f3138366ed8aa9ffb56e1173268e43ea21f2f282[m
+Author: 您的用户名 <您的邮箱>
+Date:   Fri Mar 21 15:15:29 2025 +0800
+
+    修复能源监控小程序中的关键问题：1. 修复WebSocket连接逻辑 2. 解决模拟数据加载问题 3. 完善图标文件结构 4. 更新README文档
+
+M	energy-monitor-miniprogram/README.md
+M	energy-monitor-miniprogram/app.js
+D	energy-monitor-miniprogram/images/create_icons.js
+A	energy-monitor-miniprogram/images/weather/cloudy.png
+A	energy-monitor-miniprogram/images/weather/heavy_rain.png
+A	energy-monitor-miniprogram/images/weather/light_rain.png
+A	energy-monitor-miniprogram/images/weather/moderate_rain.png
+A	energy-monitor-miniprogram/images/weather/overcast.png
+A	energy-monitor-miniprogram/images/weather/sunny.png
+A	energy-monitor-miniprogram/images/weather/thunder.png
+M	energy-monitor-miniprogram/pages/index/index.js
+M	energy-monitor-miniprogram/project.private.config.json
+M	energy-monitor-miniprogram/utils/api.js
+A	energy-monitor-miniprogram/utils/config.js
+A	energy-monitor-miniprogram/utils/icons.js
+M	energy-monitor-miniprogram/utils/mock.js
+M	energy-monitor-miniprogram/utils/websocket.js
+
+[33mcommit ded62be28063fcd3e26a7f018ba90698bccf7713[m
+Author: 您的用户名 <您的邮箱>
+Date:   Thu Mar 20 20:47:16 2025 +0800
+
+    修复mock.js和create_icons.js文件编码问题
+
+M	energy-monitor-miniprogram/images/create_icons.js
+M	energy-monitor-miniprogram/utils/mock.js
+
+[33mcommit 10aa0d413bc98bf83d62d15fca16070b2e17c3c8[m
+Author: 您的用户名 <您的邮箱>
+Date:   Thu Mar 20 20:42:47 2025 +0800
+
+    创建微信小程序基本结构和首页实现
+
+A	energy-monitor-miniprogram/README.md
+A	energy-monitor-miniprogram/app.js
+A	energy-monitor-miniprogram/app.json
+A	energy-monitor-miniprogram/app.wxss
+A	energy-monitor-miniprogram/components/battery-status/battery-status.js
+A	energy-monitor-miniprogram/components/battery-status/battery-status.json
+A	energy-monitor-miniprogram/components/battery-status/battery-status.wxml
+A	energy-monitor-miniprogram/components/battery-status/battery-status.wxss
+A	energy-monitor-miniprogram/images/battery.png
+A	energy-monitor-miniprogram/images/create_icons.js
+A	energy-monitor-miniprogram/images/energy.png
+A	energy-monitor-miniprogram/images/grid.png
+A	energy-monitor-miniprogram/images/history.png
+A	energy-monitor-miniprogram/images/history_selected.png
+A	energy-monitor-miniprogram/images/home.png
+A	energy-monitor-miniprogram/images/home_selected.png
+A	energy-monitor-miniprogram/images/settings.png
+A	energy-monitor-miniprogram/images/settings_selected.png
+A	energy-monitor-miniprogram/images/share.png
+A	energy-monitor-miniprogram/images/solar.png
+A	energy-monitor-miniprogram/images/trend.png
+A	energy-monitor-miniprogram/images/trend_selected.png
+A	energy-monitor-miniprogram/images/weather.png
+A	energy-monitor-miniprogram/pages/history/history.json
+A	energy-monitor-miniprogram/pages/history/history.wxml
+A	energy-monitor-miniprogram/pages/index/index.js
+A	energy-monitor-miniprogram/pages/index/index.json
+A	energy-monitor-miniprogram/pages/index/index.wxml
+A	energy-monitor-miniprogram/pages/index/index.wxss
+A	energy-monitor-miniprogram/pages/settings/settings.js
+A	energy-monitor-miniprogram/pages/settings/settings.json
+A	energy-monitor-miniprogram/pages/settings/settings.wxml
+A	energy-monitor-miniprogram/pages/settings/settings.wxss
+A	energy-monitor-miniprogram/pages/trends/trends.js
+A	energy-monitor-miniprogram/pages/trends/trends.json
+A	energy-monitor-miniprogram/pages/trends/trends.wxml
+A	energy-monitor-miniprogram/pages/trends/trends.wxss
+A	energy-monitor-miniprogram/project.config.json
+A	energy-monitor-miniprogram/project.private.config.json
+A	energy-monitor-miniprogram/services/battery.js
+A	energy-monitor-miniprogram/services/price.js
+A	energy-monitor-miniprogram/services/solar.js
+A	energy-monitor-miniprogram/services/system.js
+A	energy-monitor-miniprogram/services/weather.js
+A	energy-monitor-miniprogram/sitemap.json
+A	energy-monitor-miniprogram/utils/api.js
+A	energy-monitor-miniprogram/utils/mock.js
+A	energy-monitor-miniprogram/utils/util.js
+A	energy-monitor-miniprogram/utils/websocket.js
+
+[33mcommit a61eb29288ea67aa7e28f5b9c2f931e88c656d26[m
+Author: 您的用户名 <您的邮箱>
+Date:   Thu Mar 20 20:22:17 2025 +0800
+
+    更新README文档，添加微信小程序部分介绍
+
+M	README.md
+
+[33mcommit 4ceab60b6ac841a3d6f117161cdd2c59853c208a[m
+Author: 您的用户名 <您的邮箱>
+Date:   Thu Mar 20 20:16:50 2025 +0800
+
+    添加历史数据页面组件和相关工具类
+
+A	energy-monitor-miniprogram/pages/history/history.js
+A	energy-monitor-miniprogram/pages/history/history.wxss
+A	energy-monitor-miniprogram/services/api-service.js
+A	energy-monitor-miniprogram/utils/date-util.js
+
+[33mcommit 093e1a6f74ccee320c9cf0015bc1b47736fc07ed[m
+Author: 您的用户名 <您的邮箱>
+Date:   Thu Mar 20 19:55:09 2025 +0800
+
+    添加：微信小程序开发方案和项目结构文档
+
+A	wechat-mini-program-plan.md
+A	wechat-mini-program-structure.md
+
+[33mcommit b28357ddc48a10358784f5156aebbd1ddb931d6d[m
+Author: 您的用户名 <您的邮箱>
+Date:   Thu Mar 20 19:52:38 2025 +0800
+
+    修复：电池状态显示逻辑，使状态与电量百分比关联
+
+M	public/index.html
+
+[33mcommit b8ac9c381ef248697c0ddbafae836dd21791ada4[m
+Author: 您的用户名 <您的邮箱>
+Date:   Wed Mar 19 20:46:12 2025 +0800
+
+    修复：1.标题重叠问题；2.电池状态未知问题；3.中文字符显示问题
+
+M	public/index.html
+
+[33mcommit a069ce8e03a0cfe18cb656eca4b6e10084727797[m
+Author: 您的用户名 <您的邮箱>
+Date:   Wed Mar 19 20:39:03 2025 +0800
+
+    修改：不再显示天气数据来源标记，修复中文显示问题
+
+M	public/index.html
+
+[33mcommit 02a0dda1619b859a29647bbeebb2cb7548d150c0[m
+Merge: 20f63c7 77595ca
+Author: 您的用户名 <您的邮箱>
+Date:   Wed Mar 19 20:32:51 2025 +0800
+
+    合并README.md，解决冲突
+
+[33mcommit 20f63c76c403ebb0aa3062c773bc69073830ec14[m
+Author: 您的用户名 <您的邮箱>
+Date:   Wed Mar 19 20:25:33 2025

@@ -1,45 +1,156 @@
 /**
  * 配置文件
- * 系统全局配置参数
+ * 提供系统配置项和全局设置
  */
+
+// 全局配置
+const appConfig = {
+  // 应用基本信息
+  name: '能源监控系统',
+  version: '1.0.0',
+  defaultTheme: 'dark',  // 默认主题
+  
+  // 后端服务配置
+  backendHost: 'http://localhost:3001',  // 后端服务地址
+  socketUrl: 'ws://localhost:3001/ws',   // WebSocket服务地址
+  
+  // 功能配置
+  useMockData: true,     // 是否使用模拟数据
+  enableNotifications: true,  // 是否启用通知
+  autoRefresh: true,     // 是否自动刷新
+  refreshInterval: 60,   // 刷新间隔（秒）
+  
+  // API版本
+  apiVersion: 'v1',
+  
+  // 存储键名
+  storageKeys: {
+    theme: 'theme',
+    autoRefresh: 'autoRefresh',
+    refreshInterval: 'refreshInterval',
+    notifications: 'notifications',
+    deviceId: 'deviceId'
+  },
+
+  // 默认设置
+  defaultSettings: {
+    theme: 'dark',
+    autoRefresh: true,
+    refreshInterval: 30,
+    notifications: true
+  }
+};
+
+/**
+ * 获取WebSocket服务器地址
+ * @returns {string} WebSocket服务器URL
+ */
+function getWebSocketUrl() {
+  return appConfig.socketUrl;
+}
+
+/**
+ * 获取后端API基础URL
+ * @returns {string} 后端API基础URL
+ */
+function getApiBaseUrl() {
+  return `${appConfig.backendHost}/api/${appConfig.apiVersion}`;
+}
+
+/**
+ * 获取设备ID，如果不存在则生成一个
+ * @returns {string} 设备ID
+ */
+function getDeviceId() {
+  let deviceId = wx.getStorageSync(appConfig.storageKeys.deviceId);
+  
+  if (!deviceId) {
+    // 生成随机设备ID
+    deviceId = 'wxapp_' + Math.random().toString(36).substring(2, 10);
+    wx.setStorageSync(appConfig.storageKeys.deviceId, deviceId);
+  }
+  
+  return deviceId;
+}
+
+/**
+ * 获取主题设置，如果不存在则使用默认主题
+ * @returns {string} 主题名称
+ */
+function getTheme() {
+  return wx.getStorageSync(appConfig.storageKeys.theme) || appConfig.defaultTheme;
+}
+
+/**
+ * 保存主题设置
+ * @param {string} theme 主题名称
+ */
+function saveTheme(theme) {
+  wx.setStorageSync(appConfig.storageKeys.theme, theme);
+}
+
+/**
+ * 获取自动刷新设置
+ * @returns {boolean} 是否自动刷新
+ */
+function getAutoRefresh() {
+  const value = wx.getStorageSync(appConfig.storageKeys.autoRefresh);
+  return value !== '' ? value : appConfig.autoRefresh;
+}
+
+/**
+ * 获取刷新间隔
+ * @returns {number} 刷新间隔（秒）
+ */
+function getRefreshInterval() {
+  const value = wx.getStorageSync(appConfig.storageKeys.refreshInterval);
+  return value || appConfig.refreshInterval;
+}
 
 /**
  * 服务器配置
  */
 const serverConfig = {
-  // API基础地址
-  apiUrl: 'http://localhost:3001',
-  // WebSocket地址
-  socketUrl: 'ws://localhost:3001',
-  // API路径
-  apiPaths: {
-    home: '/api/home',
-    history: '/api/history',
-    trend: '/api/trend',
-    device: '/api/device',
-    auth: '/api/auth',
-    deviceInfo: '/api/device/info'
-  },
-  // 请求超时时间
-  timeout: 10000
+  // API服务器地址
+  apiBaseUrl: 'http://localhost:3001/api',
+  
+  // WebSocket服务器地址
+  webSocketUrl: 'ws://localhost:3001/ws',
+  
+  // 设备ID (用于身份识别)
+  deviceId: 'miniprogram-client'
 };
 
 /**
- * 应用配置
+ * 获取API服务器基础URL
+ * @returns {string} API基础URL
  */
-const appConfig = {
-  // 应用名称
-  appName: '能源监控系统',
-  // 默认主题
-  defaultTheme: 'light',
-  // 自动刷新间隔（毫秒）
-  refreshInterval: 30000,
-  // 是否使用模拟数据（开发环境设为true）
-  useMockData: true,
-  // 数据缓存时间（毫秒）
-  cacheTime: 5 * 60 * 1000,
-  // 调试模式
-  debug: true
+const getApiBaseUrl = () => {
+  return serverConfig.apiBaseUrl;
+};
+
+/**
+ * 获取WebSocket服务器URL
+ * @returns {string} WebSocket URL
+ */
+const getWebSocketUrl = () => {
+  return serverConfig.webSocketUrl;
+};
+
+/**
+ * 获取设备ID
+ * @returns {string} 设备ID
+ */
+const getDeviceId = () => {
+  return serverConfig.deviceId;
+};
+
+/**
+ * 获取应用程序配置
+ * @returns {Object} 应用程序配置对象
+ */
+const getAppConfig = () => {
+  return appConfig;
 };
 
 /**
@@ -106,5 +217,13 @@ module.exports = {
   chartConfig,
   batteryConfig,
   solarConfig,
-  weatherConfig
+  weatherConfig,
+  getWebSocketUrl,
+  getApiBaseUrl,
+  getDeviceId,
+  getTheme,
+  saveTheme,
+  getAutoRefresh,
+  getRefreshInterval,
+  getAppConfig
 }; 
