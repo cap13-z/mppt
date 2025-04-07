@@ -468,8 +468,30 @@ app.get('/api/hubei-electricity-price', (req, res) => {
 // API 路由 - 获取武汉实时天气数据
 app.get('/api/wuhan-weather', async (req, res) => {
     try {
-        // 调用天气服务获取最新数据
+        // 优先使用全局变量中的API天气数据
+        if (global.lastApiWeatherData) {
+            console.log('API请求/api/wuhan-weather：返回全局缓存的API天气数据');
+            return res.json({
+                ...global.lastApiWeatherData,
+                timestamp: new Date().toISOString(),
+                message: '使用缓存的API天气数据'
+            });
+        }
+        
+        // 如果全局变量中没有天气数据，再尝试从天气服务获取
         const latestWeather = await wuhanWeatherService.fetchWeatherData();
+        console.log('API请求/api/wuhan-weather：成功获取最新天气数据');
+        
+        // 将获取到的数据也保存到全局变量中
+        if (latestWeather) {
+            global.lastApiWeatherData = {
+                ...latestWeather,
+                isReal: true,
+                priority: 'high',
+                source: latestWeather.source || '心知天气API'
+            };
+        }
+        
         res.json(latestWeather);
     } catch (error) {
         console.error('获取武汉天气数据时出错:', error);

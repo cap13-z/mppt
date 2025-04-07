@@ -68,10 +68,11 @@ async function saveToDatabase(data) {
                 // 处理功耗数据
                 if (data.params.powerConsumption !== undefined) {
                     await conn.query(
-                        'INSERT INTO power_status (status, load_power, mode, timestamp) VALUES (?, ?, ?, NOW())',
+                        'INSERT INTO power_status (source, load_power, grid_status, solar_status, timestamp) VALUES (?, ?, ?, ?, NOW())',
                         [getStatusFromMeterState(data.params.ElectricMeterState), 
                          data.params.powerConsumption,
-                         'MPPT模式']
+                         '正常',
+                         '正常']
                     );
                     
                     // 更新最后一次真实数据接收时间
@@ -93,8 +94,8 @@ async function saveToDatabase(data) {
         } else if (data.topic && data.topic.includes('/mqtt/status')) {
             // 设备状态变更消息
             await conn.query(
-                'INSERT INTO power_status (status, timestamp) VALUES (?, NOW())',
-                [data.status]
+                'INSERT INTO power_status (source, grid_status, solar_status, timestamp) VALUES (?, ?, ?, NOW())',
+                [data.status, '正常', '正常']
             );
         } else {
             // 保存其他类型数据（如模拟数据）
@@ -115,10 +116,11 @@ async function saveToDatabase(data) {
             // 保存功耗状态数据
             if (data.power) {
                 await conn.query(
-                    'INSERT INTO power_status (status, load_power, mode, timestamp) VALUES (?, ?, ?, NOW())',
-                    [data.power.status,
+                    'INSERT INTO power_status (source, load_power, grid_status, solar_status, timestamp) VALUES (?, ?, ?, ?, NOW())',
+                    [data.power.status || data.power.source || '电网',
                      data.power.loadPower,
-                     data.power.mode]
+                     data.power.grid_status || '正常',
+                     data.power.solar_status || '正常']
                 );
             }
             
@@ -223,28 +225,18 @@ function generateSimulatedData() {
     simulationState.temperature = smoothChange(simulationState.temperature, 25, 35, 0.3, 1);
     
     // 生成系统供电状态 - 白天使用太阳能，晚上使用电网
-    const electricMeterState = (hour >= 8 && hour < 17) ? 2 : 3; // 2-太阳能，3-电网
+    const powerSource = (hour >= 8 && hour < 17) ? '太阳能' : '电网';
+    const solarStatus = (hour >= 8 && hour < 17) ? '正常' : '低效';
+    const gridStatus = '正常';
     
-    // 标准天气状况，使用明确的字符串而不是随机索引
-    const standardWeatherConditions = ['晴朗', '多云', '阴天', '小雨'];
-    const weatherIndex = Math.floor(Math.random() * standardWeatherConditions.length);
-    const weatherCondition = standardWeatherConditions[weatherIndex];
-    
-    // 构造模拟数据
+    // 构造模拟数据 - 移除天气相关字段
     return {
         topic: '/sys/' + deviceConfig.productKey + '/thing/event/property/post',
         params: {
             vot: voltage,
             powerConsumption: simulationState.loadPower,
             tem: simulationState.temperature,
-            humidity: parseFloat(smoothChange(50, 40, 70, 1, 1)),
-            weatherCondition: weatherCondition, // 使用标准天气状况
-            solarRadiation: hour >= 8 && hour < 17 ? 
-                parseFloat(smoothChange(600, 400, 800, 20, 0)) : 
-                parseFloat(smoothChange(100, 0, 200, 10, 0)),
-            windDirection: ['东风', '南风', '西风', '北风'][Math.floor(Math.random() * 4)],
-            windScale: Math.floor(Math.random() * 4) + 1,
-            ElectricMeterState: electricMeterState,
+            ElectricMeterState: hour >= 8 && hour < 17 ? 2 : 3,
             solarVoltage: simulationState.solarVoltage,
             solarCurrent: simulationState.solarCurrent
         },
@@ -257,53 +249,39 @@ function formatDataForFrontend(data) {
     // 如果是设备属性上报数据
     if (data.params) {
         const timestamp = new Date().toISOString();
-        const batteryStatus = data.params.ElectricMeterState === 2 ? '充电中' : 
-                              (simulationState.batteryCapacity > 95 ? '满电状态' : '放电中');
         
-        // 从缓存获取最新的天气数据
-        let weatherData = null;
-        if (require('./weather-service').getLastWeatherData) {
-            weatherData = require('./weather-service').getLastWeatherData();
-        }
+        // 构造电池状态数据
+        const batteryData = {
+            voltage: data.params.vot || 0,
+            capacity: calculateBatteryCapacity(data.params.vot) || 0,
+            temperature: data.params.tem || 25,
+            timestamp: timestamp,
+            status: data.params.vot > 5.0 ? '充电中' : '放电中' // 根据电压判断状态
+        };
+        
+        // 构造太阳能数据
+        const solarData = {
+            voltage: data.params.solarVoltage || 0,
+            current: data.params.solarCurrent || 0,
+            power: (data.params.solarVoltage || 0) * (data.params.solarCurrent || 0),
+            efficiency: 80 + Math.random() * 15, // 模拟效率
+            temperature: data.params.tem ? data.params.tem + 5 : 30, // 太阳能板温度通常高于环境温度
+            timestamp: timestamp
+        };
+        
+        // 构造系统供电状态数据
+        const powerStatus = {
+            source: data.params.ElectricMeterState === 2 ? '太阳能' : '电网',
+            load_power: data.params.powerConsumption || 0,
+            grid_status: '正常',
+            solar_status: data.params.ElectricMeterState === 2 ? '正常' : '低效',
+            timestamp: timestamp
+        };
         
         return {
-            timestamp: timestamp,
-            battery: {
-                voltage: data.params.vot || 0,
-                capacity: simulationState.batteryCapacity,
-                temperature: data.params.tem || 25,
-                current: simulationState.batteryTrend > 0 ? 0.8 : 0.4, // 充电电流较大，放电电流较小
-                status: batteryStatus
-            },
-            solar: {
-                voltage: data.params.solarVoltage || 15.0,
-                current: data.params.solarCurrent || 1.0,
-                power: parseFloat((data.params.solarVoltage * data.params.solarCurrent).toFixed(1)) || 15.0,
-                efficiency: smoothChange(85, 80, 90, 0.5, 1), // 高效率
-                temperature: data.params.tem ? data.params.tem + 5 : 35 // 太阳能板温度略高于环境温度
-            },
-            system: {
-                online: true,
-                source: data.params.ElectricMeterState === 3 ? '电网' : '太阳能',
-                loadPower: data.params.powerConsumption || 15.0,
-                mode: 'MPPT模式',
-                gridStatus: data.params.ElectricMeterState === 3 ? '在线' : '离线',
-                solarStatus: data.params.ElectricMeterState === 2 ? '在线' : '离线',
-                meterStatus: ['离线正常', '离线异常', '太阳能模式', '电网模式'][data.params.ElectricMeterState] || '未知'
-            },
-            weather: weatherData ? {
-                temperature: weatherData.temperature,
-                condition: weatherData.weather
-            } : {
-                temperature: '20',
-                condition: '多云'
-            },
-            price: {
-                current: 0.5,
-                level: '平值',
-                nextChange: new Date(Date.now() + 3600000).toISOString()
-            },
-            isSimulated: data.isSimulated || false
+            battery: batteryData,
+            solar: solarData,
+            power: powerStatus,
         };
     }
     
@@ -319,41 +297,214 @@ function formatDataForFrontend(data) {
     return data;
 }
 
-// 启动模拟数据发送
+// 开始模拟数据发送
 function startSimulation(io) {
+    console.log('启动模拟数据发送器...');
+    
+    // 初始化模拟状态
+    simulationState = {
+        batteryCapacity: 75, // 初始电池容量
+        batteryTrend: 0.1,   // 初始趋势(充电中)
+        solarVoltage: 15,    // 初始太阳能电压
+        solarCurrent: 1,     // 初始太阳能电流
+        loadPower: 15,       // 初始负载功率
+        temperature: 30      // 初始温度
+    };
+    
+    // 停止之前的定时器
     if (simulationConfig.simulationTimer) {
         clearInterval(simulationConfig.simulationTimer);
     }
     
-    console.log('启动模拟数据发送，间隔：', simulationConfig.interval, 'ms');
+    // 设置发送间隔
+    const INTERVAL = 3000; // 3秒一次，缩短间隔以便更快看到效果
+    console.log(`启动模拟数据发送，间隔： ${INTERVAL} ms`);
     
+    // 立即发送多次模拟数据，以确保前端有足够的数据显示
+    console.log('立即发送初始化数据...');
+    for (let i = 0; i < 10; i++) {
+        setTimeout(() => {
+            sendSimulatedData(io);
+        }, i * 100); // 快速发送10次初始数据
+    }
+    
+    // 定期发送模拟数据
     simulationConfig.simulationTimer = setInterval(() => {
-        // 检查是否应该发送模拟数据
-        const now = Date.now();
-        const timeSinceLastRealData = now - simulationConfig.lastRealDataTime;
-        
-        if (simulationConfig.enabled && 
-            (timeSinceLastRealData > simulationConfig.realDataTimeout || simulationConfig.lastRealDataTime === 0)) {
-            
-            console.log('发送模拟数据（上次真实数据接收时间：', 
-                        simulationConfig.lastRealDataTime ? new Date(simulationConfig.lastRealDataTime).toLocaleString() : '从未',
-                        '）');
-            
-            // 生成模拟数据
-            const simulatedData = generateSimulatedData();
-            
-            // 保存到数据库
-            saveToDatabase(simulatedData);
-            
-            // 发送到前端
-            if (io) {
-                const formattedData = formatDataForFrontend(simulatedData);
-                io.emit('device-data', formattedData);
-            }
-        }
-    }, simulationConfig.interval);
+        sendSimulatedData(io);
+    }, INTERVAL);
     
-    return simulationConfig.simulationTimer;
+    return true;
+}
+
+// 发送模拟数据
+async function sendSimulatedData(io) {
+    try {
+        // 生成模拟数据
+        const data = generateSimulatedData();
+        console.log('发送模拟数据（上次真实数据接收时间： ' + 
+            (simulationConfig.lastRealDataTime ? new Date(simulationConfig.lastRealDataTime).toLocaleString() : '从未') + ' ）');
+
+        // 格式化数据供前端使用
+        const formattedData = formatDataForFrontend(data);
+        
+        // 生成电价数据
+        const priceData = generatePriceData();
+        formattedData.price = priceData;
+        
+        // 确保所有数据都有合理的非零值
+        ensureValidData(formattedData);
+        
+        // 使用全局API天气数据（如果可用）
+        if (global.lastApiWeatherData) {
+            console.log('使用全局API天气数据');
+            formattedData.weather = global.lastApiWeatherData;
+        } else {
+            console.log('无API天气数据可用');
+            // 不生成模拟天气数据
+        }
+        
+        // 通过WebSocket发送数据到前端
+        io.emit('device-data', formattedData);
+        
+        // 保存到数据库（如果可用）
+        try {
+            await saveToDatabase(formattedData);
+            
+            // 保存电价数据
+            try {
+                const conn = await pool.getConnection();
+                await conn.query(
+                    'INSERT INTO electricity_price (price, price_level, next_change_time, timestamp) VALUES (?, ?, ?, NOW())',
+                    [priceData.price, priceData.price_level, new Date(priceData.next_change_time)]
+                );
+                conn.release();
+            } catch (priceError) {
+                console.error('保存电价数据到数据库时出错:', priceError);
+            }
+        } catch (error) {
+            console.error('保存模拟数据到数据库时出错:', error);
+        }
+        
+        // 也发送data-update事件格式的数据，确保兼容性
+        const dataUpdatePayload = {
+            timestamp: new Date().toISOString(),
+            battery: formattedData.battery,
+            solar: formattedData.solar,
+            system: {
+                source: formattedData.power.source,
+                loadPower: formattedData.power.load_power,
+                gridStatus: formattedData.power.grid_status,
+                solarStatus: formattedData.power.solar_status
+            },
+            price: priceData
+        };
+        
+        // 只有在有API天气数据时才添加到payload
+        if (global.lastApiWeatherData) {
+            dataUpdatePayload.weather = global.lastApiWeatherData;
+        }
+        
+        io.emit('data-update', dataUpdatePayload);
+        
+        return true;
+    } catch (error) {
+        console.error('发送模拟数据时出错:', error);
+        return false;
+    }
+}
+
+// 确保所有数据都有合理的非零值
+function ensureValidData(data) {
+    // 确保电池数据有效
+    if (data.battery) {
+        if (!data.battery.voltage || data.battery.voltage <= 0) {
+            data.battery.voltage = 12 + Math.random() * 2;
+        }
+        if (!data.battery.capacity || data.battery.capacity <= 0) {
+            data.battery.capacity = 75 + Math.random() * 25;
+        }
+        data.battery.status = data.battery.voltage > 12.5 ? '充电中' : '放电中';
+    }
+    
+    // 确保太阳能数据有效
+    if (data.solar) {
+        if (!data.solar.voltage || data.solar.voltage <= 0) {
+            data.solar.voltage = 15 + Math.random() * 3;
+        }
+        if (!data.solar.current || data.solar.current <= 0) {
+            data.solar.current = 0.8 + Math.random() * 1.2;
+        }
+        if (!data.solar.power || data.solar.power <= 0) {
+            data.solar.power = data.solar.voltage * data.solar.current;
+        }
+        data.solar.efficiency = 80 + Math.random() * 15;
+    }
+    
+    // 确保电源状态数据有效
+    if (data.power) {
+        if (!data.power.load_power || data.power.load_power <= 0) {
+            data.power.load_power = 50 + Math.random() * 100;
+        }
+        if (!data.power.source || data.power.source === '') {
+            data.power.source = Math.random() > 0.5 ? '太阳能' : '电网';
+        }
+        data.power.grid_status = '正常';
+        data.power.solar_status = data.power.source === '太阳能' ? '正常' : '低效';
+    }
+    
+    // 确保电价数据有效
+    if (data.price) {
+        if (!data.price.price || data.price.price <= 0) {
+            data.price.price = 0.52 + Math.random() * 0.3;
+        }
+    }
+    
+    return data;
+}
+
+// 生成电价数据
+function generatePriceData() {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // 根据时间段生成不同的电价等级
+    let priceLevel = '平值';
+    let price = 0.52; // 默认平值电价
+    
+    // 8:00-12:00 和 17:00-21:00 是峰值时段
+    if ((hour >= 8 && hour < 12) || (hour >= 17 && hour < 21)) {
+        priceLevel = '峰值';
+        price = 0.82; // 峰值电价
+    } 
+    // 23:00-次日7:00 是谷值时段
+    else if (hour >= 23 || hour < 7) {
+        priceLevel = '谷值';
+        price = 0.32; // 谷值电价
+    }
+    
+    // 计算下次电价变动时间
+    let nextChangeHour;
+    if (hour < 7) nextChangeHour = 7;
+    else if (hour < 8) nextChangeHour = 8;
+    else if (hour < 12) nextChangeHour = 12;
+    else if (hour < 17) nextChangeHour = 17;
+    else if (hour < 21) nextChangeHour = 21;
+    else if (hour < 23) nextChangeHour = 23;
+    else nextChangeHour = 7; // 跨天
+    
+    const nextChangeTime = new Date(now);
+    if (hour >= 23 && nextChangeHour < 23) {
+        // 跨天设置
+        nextChangeTime.setDate(nextChangeTime.getDate() + 1);
+    }
+    nextChangeTime.setHours(nextChangeHour, 0, 0, 0);
+    
+    return {
+        price: price + (Math.random() - 0.5) * 0.05, // 增加少量随机波动
+        price_level: priceLevel,
+        next_change_time: nextChangeTime.toISOString(),
+        timestamp: now.toISOString()
+    };
 }
 
 // 停止模拟数据发送
