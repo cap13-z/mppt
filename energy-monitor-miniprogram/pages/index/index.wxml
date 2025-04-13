@@ -29,7 +29,7 @@
         </view>
         <view class="info-row">
           <text class="info-label">当前状态</text>
-          <text class="info-value {{batteryStatus === '满电状态' ? 'normal' : (batteryStatus === '充电中' ? 'charging' : 'warning')}}">{{batteryStatus || '未知'}}</text>
+          <text class="info-value {{batteryStatus === '满电' ? 'normal' : (batteryStatus === '低电量' ? 'warning' : 'normal')}}">{{batteryStatus || '未知'}}</text>
         </view>
         <view class="info-row">
           <text class="info-label">电流</text>
@@ -55,7 +55,7 @@
       <view class="card-content">
         <view class="solar-power">
           <text class="power-value">{{solarPower}}</text>
-          <text class="power-unit">kW</text>
+          <text class="power-unit">W</text>
         </view>
         <view class="info-row">
           <text class="info-label">今日发电量</text>
@@ -90,12 +90,8 @@
           </view>
         </view>
         <view class="info-row">
-          <text class="info-label">风速</text>
-          <text class="info-value">{{windSpeed}}m/s</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">湿度</text>
-          <text class="info-value">{{humidity}}%</text>
+          <text class="info-label">城市</text>
+          <text class="info-value">{{city}}</text>
         </view>
       </view>
     </view>
@@ -113,14 +109,6 @@
         <view class="info-row">
           <text class="info-label">当前电价</text>
           <text class="info-value">{{electricityPrice}}元/kWh</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">供电电压</text>
-          <text class="info-value {{gridVoltage < 220 || gridVoltage > 240 ? 'warning' : 'normal'}}">{{gridVoltage}}V</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">负载情况</text>
-          <text class="info-value">{{gridLoad}}kW</text>
         </view>
       </view>
     </view>

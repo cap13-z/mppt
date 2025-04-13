@@ -347,8 +347,10 @@ async function sendSimulatedData(io) {
         // 格式化数据供前端使用
         const formattedData = formatDataForFrontend(data);
         
-        // 生成电价数据
+        // 生成电价数据 - 确保电价信息始终存在
         const priceData = generatePriceData();
+        // 将电价数据保存到全局变量，确保其他地方也能访问
+        global.currentPriceData = priceData;
         formattedData.price = priceData;
         
         // 确保所有数据都有合理的非零值
@@ -396,7 +398,7 @@ async function sendSimulatedData(io) {
                 gridStatus: formattedData.power.grid_status,
                 solarStatus: formattedData.power.solar_status
             },
-            price: priceData
+            price: priceData,  // 确保电价数据一致
         };
         
         // 只有在有API天气数据时才添加到payload
@@ -454,12 +456,64 @@ function ensureValidData(data) {
     
     // 确保电价数据有效
     if (data.price) {
-        if (!data.price.price || data.price.price <= 0) {
-            data.price.price = 0.52 + Math.random() * 0.3;
+        // 严格检查电价是否为无效值
+        if (data.price.price === undefined || data.price.price === null || 
+            data.price.price <= 0 || isNaN(data.price.price)) {
+            console.log('检测到无效电价数据，修正为默认值');
+            // 获取当前小时，根据时间段生成合理的电价
+            const hour = new Date().getHours();
+            let defaultPrice = 0.55; // 默认平价
+            let defaultLevel = '平值';
+            
+            // 8:00-22:00 是峰值时段
+            if (hour >= 8 && hour < 22) {
+                if (hour >= 8 && hour < 12 || hour >= 17 && hour < 21) {
+                    defaultPrice = 0.82; // 峰值电价
+                    defaultLevel = '峰值';
+                }
+            } else {
+                defaultPrice = 0.32; // 谷值电价
+                defaultLevel = '谷值';
+            }
+            
+            // 添加小幅随机波动
+            const randomFactor = 1 + (Math.random() - 0.5) * 0.05;
+            data.price.price = defaultPrice * randomFactor;
+            data.price.price_level = defaultLevel;
+            data.price.next_change_time = calculateNextPriceChangeTime();
         }
+        
+        // 确保电价有小数点后两位，避免显示为整数
+        data.price.price = parseFloat(data.price.price.toFixed(2));
     }
     
     return data;
+}
+
+// 计算下一次电价变动时间
+function calculateNextPriceChangeTime() {
+    const now = new Date();
+    const hour = now.getHours();
+    const nextChangeTime = new Date(now);
+    
+    // 根据当前时间段确定下一个变动时间点
+    let nextHour;
+    if (hour < 7) nextHour = 7;      // 凌晨->早上7点(谷值结束)
+    else if (hour < 8) nextHour = 8;  // 早7点->早8点(开始峰值)
+    else if (hour < 12) nextHour = 12; // 早8点->中午12点(峰值)
+    else if (hour < 17) nextHour = 17; // 中午12点->下午17点(开始峰值)
+    else if (hour < 21) nextHour = 21; // 下午17点->晚上21点(峰值结束)
+    else if (hour < 23) nextHour = 23; // 晚上21点->晚上23点(开始谷值)
+    else nextHour = 7;               // 晚上23点->次日早7点(谷值)
+    
+    // 如果是跨天的时间点
+    if (hour >= 23 && nextHour < 23) {
+        nextChangeTime.setDate(nextChangeTime.getDate() + 1);
+    }
+    
+    // 设置具体时间
+    nextChangeTime.setHours(nextHour, 0, 0, 0);
+    return nextChangeTime.toISOString();
 }
 
 // 生成电价数据

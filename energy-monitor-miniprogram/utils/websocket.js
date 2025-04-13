@@ -42,7 +42,7 @@ const connect = () => {
     isConnecting = true;
     
     // 获取WebSocket服务器地址
-    const wsUrl = config.getWebSocketUrl();
+    const wsUrl = 'ws://localhost:3001/ws';
     
     console.log('开始连接WebSocket:', wsUrl);
     
@@ -56,13 +56,24 @@ const connect = () => {
         fail: (err) => {
           console.error('WebSocket连接创建失败:', err);
           isConnecting = false;
-          reject(err);
+          // 静默失败，不抛出错误给上层
+          resolve({ connected: false, error: err });
         }
       });
+      
+      // 设置超时检测，避免连接长时间未响应
+      const connectionTimeout = setTimeout(() => {
+        if (isConnecting && !isConnected) {
+          console.log('WebSocket连接超时');
+          isConnecting = false;
+          resolve({ connected: false, error: { errMsg: 'connection timeout' } });
+        }
+      }, 5000);
       
       // 监听WebSocket连接打开事件
       socketTask.onOpen(() => {
         console.log('WebSocket连接已打开');
+        clearTimeout(connectionTimeout);
         isConnected = true;
         isConnecting = false;
         reconnectCount = 0;
@@ -118,7 +129,8 @@ const connect = () => {
         // 尝试重连
         handleReconnect(err);
         
-        reject(err);
+        // 静默失败，不抛出错误给上层
+        resolve({ connected: false, error: err });
       });
       
       // 监听WebSocket连接关闭事件
@@ -137,7 +149,8 @@ const connect = () => {
     } catch (error) {
       console.error('创建WebSocket连接失败:', error);
       isConnecting = false;
-      reject(error);
+      // 静默失败，不抛出错误给上层
+      resolve({ connected: false, error: error });
     }
   });
 };

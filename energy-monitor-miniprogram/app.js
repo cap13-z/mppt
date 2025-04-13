@@ -1,6 +1,19 @@
 /**
  * 能源监控小程序 - 入口文件
  */
+
+// 处理Trace未定义的错误 - 在require之前定义
+if (typeof Trace === 'undefined') {
+  // 定义一个全局Trace对象，避免引用错误
+  var Trace = {
+    // 添加可能会用到的方法
+    log: function() { console.log.apply(console, arguments); },
+    info: function() { console.info.apply(console, arguments); },
+    warn: function() { console.warn.apply(console, arguments); },
+    error: function() { console.error.apply(console, arguments); }
+  };
+}
+
 const config = require('./utils/config');
 const util = require('./utils/util');
 const websocket = require('./utils/websocket');
@@ -43,15 +56,22 @@ App({
     try {
       // 连接WebSocket
       websocket.connect()
-        .then(() => {
-          console.log('全局WebSocket连接成功');
-          this.globalData.connected = true;
+        .then(result => {
+          if (result.connected) {
+            console.log('全局WebSocket连接成功');
+            this.globalData.connected = true;
+          } else {
+            console.log('全局WebSocket连接失败，将使用模拟数据', result.error);
+            this.globalData.connected = false;
+          }
         })
         .catch(error => {
           console.error('全局WebSocket连接失败:', error);
+          this.globalData.connected = false;
         });
     } catch (error) {
       console.error('初始化WebSocket错误:', error);
+      this.globalData.connected = false;
     }
   },
   

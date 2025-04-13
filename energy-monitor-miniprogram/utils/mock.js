@@ -64,74 +64,144 @@ const getHomePageData = () => {
   // 获取当前时间
   const now = new Date();
   const hour = now.getHours();
+  const minute = now.getMinutes();
   
-  // 生成电池数据
-  const batteryCapacity = randomInt(30, 90);
-  const batteryStatus = batteryCapacity > 80 ? '满电状态' : 
+  // 保存上次生成的电池容量，确保变化合理
+  if (!getHomePageData.lastBatteryCapacity) {
+    getHomePageData.lastBatteryCapacity = 75; // 初始默认值
+  }
+  
+  // 根据时间确定电池变化方向和速率
+  let batteryCapacityChange = 0;
+  if (hour >= 9 && hour <= 16) {
+    // 白天，阳光充足，电池充电
+    batteryCapacityChange = randomFloat(0.1, 0.3);
+  } else if (hour >= 17 && hour <= 22) {
+    // 晚上用电高峰期，电池放电
+    batteryCapacityChange = randomFloat(-0.3, -0.1);
+  } else {
+    // 其他时间，轻微放电
+    batteryCapacityChange = randomFloat(-0.1, -0.05);
+  }
+  
+  // 计算新的电池容量
+  let batteryCapacity = Math.min(100, Math.max(10, getHomePageData.lastBatteryCapacity + batteryCapacityChange));
+  
+  // 更新上次电池容量
+  getHomePageData.lastBatteryCapacity = batteryCapacity;
+  
+  // 电池状态根据容量确定
+  const batteryStatus = batteryCapacity >= 100 ? '满电' : 
                          batteryCapacity > 20 ? '正常' : '低电量';
-  const batteryCurrent = hour >= 9 && hour <= 16 ? 
-                         randomFloat(1.0, 3.0) : 
-                         randomFloat(-2.0, -0.1);
-  const batteryTemperature = randomFloat(25, 40);
   
-  // 生成太阳能数据
-  const solarPower = (hour >= 8 && hour <= 17) ? randomFloat(0.5, 2.5) : randomFloat(0, 0.2);
-  const dailySolarGeneration = randomFloat(2, 15);
-  const solarEfficiency = randomFloat(15, 25);
-  const panelTemperature = randomFloat(30, 60);
+  // 电流根据充放电状态确定，不超过1A
+  const batteryCurrent = batteryCapacityChange > 0 ? 
+                         randomFloat(0.3, 0.8) : 
+                         randomFloat(-0.8, -0.3);
   
-  // 生成天气数据
-  const weatherTypes = ['晴', '多云', '阴', '小雨', '雾', '霾'];
+  // 电池温度(根据季节和充放电状态略有变化)
+  const batteryTemperature = randomFloat(25, 30);
+  
+  // 太阳能数据
+  // 太阳能功率根据时间变化
+  let solarPower = 0;
+  if (hour >= 7 && hour <= 18) {
+    // 白天时间
+    if (hour >= 10 && hour <= 14) {
+      // 太阳最强时段
+      solarPower = randomFloat(12, 16);
+    } else {
+      // 早晚时段
+      solarPower = randomFloat(8, 12);
+    }
+  } else {
+    // 夜间时段
+    solarPower = randomFloat(5, 7);
+  }
+  
+  // 太阳能发电效率
+  const solarEfficiency = randomFloat(80, 85);
+  
+  // 太阳能每日发电量(根据当前时间累计)
+  const hourFactor = Math.min(hour, 18) / 18; // 一天中的比例因子
+  const dailySolarGeneration = randomFloat(0.8, 1.2) * hourFactor * 15; // 最高约15度电
+  
+  // 太阳能板温度(根据环境温度和发电情况)
+  const panelTemperature = randomFloat(30, 40);
+  
+  // 天气数据 - 简化，只包含天气情况、温度和城市
+  const weatherTypes = ['晴', '多云', '阴', '小雨', '大雨', '雷阵雨', '雾'];
   const weatherType = randomFrom(weatherTypes);
-  const temperature = randomFloat(15, 30);
-  const humidity = randomInt(30, 90);
-  const windSpeed = randomFloat(1, 8);
   
-  // 生成电网数据
-  const gridConnected = Math.random() > 0.1;
-  const gridVoltage = gridConnected ? randomFloat(215, 235) : 0;
-  const gridLoad = gridConnected ? randomFloat(0.5, 2.5) : 0;
-  const electricityPrice = randomFloat(0.5, 1.2);
+  // 根据季节和时间调整温度
+  let baseTemp = 25; // 基础温度
+  if (hour >= 12 && hour <= 14) {
+    baseTemp += 3; // 中午温度更高
+  } else if (hour >= 20 || hour <= 5) {
+    baseTemp -= 5; // 夜间温度更低
+  }
+  const temperature = randomFloat(baseTemp - 2, baseTemp + 2);
   
-  // 返回数据 - 只使用简单数据类型，避免嵌套对象
+  // 电网数据
+  const gridConnected = true; // 默认总是连接到电网
+  
+  // 湖北省实时电价模拟 (峰谷电价)
+  let electricityPrice;
+  if ((hour >= 8 && hour <= 11) || (hour >= 15 && hour <= 18) || (hour >= 19 && hour <= 21)) {
+    // 峰时段电价 (上午8:00-11:00，下午15:00-18:00，晚上19:00-21:00)
+    electricityPrice = randomFloat(0.65, 0.68);
+  } else if (hour >= 12 && hour <= 14) {
+    // 平时段电价 (上午11:00-15:00)
+    electricityPrice = randomFloat(0.45, 0.48);
+  } else {
+    // 谷时段电价 (其他时间)
+    electricityPrice = randomFloat(0.25, 0.28);
+  }
+  
+  // 返回数据 - 只使用简单数据类型，不显示数据来源标识
   return {
     // 系统状态
     systemStatus: '正常',
     updateTime: formatISOTime(now),
     
     // 电池状态
-    batteryCapacity: batteryCapacity,
+    batteryCapacity: Number(batteryCapacity.toFixed(1)),
     batteryStatus: batteryStatus,
-    batteryCurrent: batteryCurrent,
-    batteryTemperature: batteryTemperature,
+    batteryCurrent: Number(batteryCurrent.toFixed(2)),
+    batteryTemperature: Number(batteryTemperature.toFixed(1)),
     chargingStatus: batteryCurrent > 0 ? '充电中' : '放电中',
     
     // 太阳能数据
-    solarPower: solarPower,
-    dailySolarGeneration: dailySolarGeneration,
-    solarEfficiency: solarEfficiency,
-    panelTemperature: panelTemperature,
+    solarPower: Number(solarPower.toFixed(2)),
+    dailySolarGeneration: Number(dailySolarGeneration.toFixed(2)),
+    solarEfficiency: Number(solarEfficiency.toFixed(1)),
+    panelTemperature: Number(panelTemperature.toFixed(1)),
     
-    // 天气信息
+    // 天气信息 - 简化
     weatherType: weatherType,
-    temperature: temperature,
-    humidity: humidity,
-    windSpeed: windSpeed,
+    temperature: Number(temperature.toFixed(1)),
+    city: '武汉',
     
-    // 电网状态
+    // 电网状态 - 简化
     gridConnected: gridConnected,
-    electricityPrice: electricityPrice,
-    gridVoltage: gridVoltage,
-    gridLoad: gridLoad
+    electricityPrice: Number(electricityPrice.toFixed(2))
   };
 };
 
 /**
- * 生成实时数据流
- * @returns {Object} 实时数据
+ * 生成实时数据流，包装为API格式
+ * @returns {Object} 模拟的API响应
  */
-const getRealtimeData = () => {
-  return getHomePageData();
+const getRealtimeMockData = () => {
+  const data = getHomePageData();
+  
+  // 包装为API响应格式
+  return {
+    code: 0,
+    message: "获取数据成功",
+    data: data,
+    timestamp: new Date().getTime()
+  };
 };
 
 /**
@@ -340,11 +410,10 @@ const getDeviceMockData = () => {
 // 导出模块方法
 module.exports = {
   getHomePageData,
-  getRealtimeData,
+  getRealtimeMockData,
   getHistoryMockData,
   getTrendMockData,
   getDeviceMockData,
-  getRealtimeMockData: getHomePageData, // 别名，兼容性考虑
   getWeatherMockData: () => ({ // 简单的天气数据
     temperature: randomFloat(15, 30, 1),
     condition: ['晴', '多云', '阴', '小雨', '雾'][randomInt(0, 4)],

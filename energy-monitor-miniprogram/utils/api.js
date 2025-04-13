@@ -56,7 +56,7 @@ const request = (url, method, data) => {
   return new Promise((resolve, reject) => {
     // 添加基础URL
     if (!url.startsWith('http')) {
-      url = config.getApiBaseUrl() + url;
+      url = 'http://localhost:3001/api' + url;
     }
     
     // 请求配置
@@ -237,6 +237,15 @@ const setSettings = (settings) => {
   return post('/settings', settings);
 };
 
+/**
+ * 保存用户设置
+ * @param {Object} settings 设置对象
+ * @returns {Promise} Promise对象
+ */
+const saveSettings = (settings) => {
+  return post('/settings', settings);
+};
+
 module.exports = {
   get,
   post,
@@ -252,5 +261,6 @@ module.exports = {
   getHistory,
   getTrend,
   controlDevice,
-  setSettings
+  setSettings,
+  saveSettings
 }; 

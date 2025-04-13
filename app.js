@@ -455,13 +455,90 @@ io.on('connection', (socket) => {
     });
 });
 
+// 初始化全局变量
+if (!global.lastApiWeatherData) {
+    global.lastApiWeatherData = null;
+}
+
+// 初始化全局电价数据
+if (!global.currentPriceData) {
+    global.currentPriceData = {
+        price: 0.55,
+        price_level: '平值',
+        next_change_time: new Date(Date.now() + 3600000).toISOString(),
+        timestamp: new Date().toISOString(),
+        source: '系统默认值'
+    };
+}
+
 // 添加一个新的API端点，专门用于获取湖北省实时电价
 app.get('/api/hubei-electricity-price', (req, res) => {
-    const currentPrice = hubeiElectricityPrice.getCurrentPrice();
-    if (currentPrice) {
-        res.json(currentPrice);
-    } else {
-        res.status(404).json({ error: '当前没有可用的湖北省电价数据' });
+    try {
+        const currentPrice = hubeiElectricityPrice.getCurrentPrice();
+        
+        // 确保电价数据有效
+        if (currentPrice && currentPrice.price > 0) {
+            // 使用湖北电价服务提供的数据
+            res.json(currentPrice);
+        } else if (global.currentPriceData && global.currentPriceData.price > 0) {
+            // 如果湖北电价服务无效，使用全局备份数据
+            console.log('使用全局备份电价数据:', global.currentPriceData);
+            res.json(global.currentPriceData);
+        } else {
+            // 生成一个基于时间的默认电价
+            const now = new Date();
+            const hour = now.getHours();
+            let price = 0.55; // 默认平值电价
+            let priceLevel = '平值';
+            
+            // 计算合适的电价
+            if ((hour >= 8 && hour < 12) || (hour >= 17 && hour < 21)) {
+                price = 0.82; // 峰值
+                priceLevel = '峰值';
+            } else if (hour >= 23 || hour < 7) {
+                price = 0.32; // 谷值
+                priceLevel = '谷值';
+            }
+            
+            // 添加少量随机波动
+            price = parseFloat((price * (1 + (Math.random() - 0.5) * 0.05)).toFixed(2));
+            
+            // 计算下一个电价变动时间
+            let nextHour;
+            if (hour < 7) nextHour = 7;
+            else if (hour < 8) nextHour = 8;
+            else if (hour < 12) nextHour = 12;
+            else if (hour < 17) nextHour = 17;
+            else if (hour < 21) nextHour = 21;
+            else if (hour < 23) nextHour = 23;
+            else nextHour = 7; // 跨天
+            
+            const nextTime = new Date(now);
+            if (hour >= 23 && nextHour < 23) {
+                nextTime.setDate(nextTime.getDate() + 1);
+            }
+            nextTime.setHours(nextHour, 0, 0, 0);
+            
+            const defaultPrice = {
+                price: price,
+                price_level: priceLevel,
+                next_change_time: nextTime.toISOString(),
+                timestamp: now.toISOString(),
+                source: '基于时间计算的默认值'
+            };
+            
+            // 保存到全局变量
+            global.currentPriceData = defaultPrice;
+            
+            console.log('生成默认电价数据:', defaultPrice);
+            res.json(defaultPrice);
+        }
+    } catch (error) {
+        console.error('获取电价数据时出错:', error);
+        res.status(500).json({ 
+            error: '当前没有可用的湖北省电价数据',
+            timestamp: new Date().toISOString()
+        });
     }
 });
 

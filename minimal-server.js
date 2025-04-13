@@ -14,7 +14,7 @@ app.get('/', (req, res) => {
 });
 
 // 启动服务器
-const PORT = 3003;
+const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`服务器运行在端口 ${PORT}`);
     console.log(`访问地址: http://localhost:${PORT}`);
